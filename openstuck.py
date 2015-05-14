@@ -89,6 +89,23 @@ class Openstuck():
 			self.output.add_row([category, test, concurrency, repeat,"Failures: %d" % errors.count(test)])
 		else:
 			self.output.add_row([category, test, concurrency, repeat,'OK'])
+	def Add_Role(self, keystone, user, role, tenant, errors=None, output=None, verbose=False):
+		if tenant is None or user is None:
+			errors.append('Add_Role')
+			results = 'NotRun'
+			if verbose:
+				print "Add_Role: %s to %s" % ('N/A', 'N/A')
+				output.append(['keystone', 'Add_Role', 'N/A', 'N/A', results,])
+			return
+		try:
+			keystone.roles.add_user_role(user, role, tenant)
+			results = 'OK'
+		except Exception as error:
+			errors.append('Add_Role')
+			results = error
+		if verbose:
+			print "Add_Role: %s to %s" % (role.name, user.name)
+			output.append(['keystone', 'Add_Role', role.name, role.name, results,])
 	def Authenticate_User(self, user, password, auth_url, tenant=None, errors=None, output=None, verbose=False):
 		if user is None or tenant is None:
 			errors.append('Authenticate_User')
@@ -104,6 +121,40 @@ class Openstuck():
 		if verbose:
 			print "Authenticate_User: %s in %s" % (user.name, tenant.name)
 			output.append(['keystone', 'Authenticate_User', user.name, user.name, results,])
+	def Create_Image(self, glance, image, imagepath, images=None, errors=None, output=None, verbose=False):
+		if imagepath is None:
+			errors.append('Create_Image')
+			results = 'Missing OS_GLANCE_IMAGE_PATH Environment variable for path'
+			images.append(None)
+			if verbose:
+				print "Create_Image: %s" % 'N/A'
+				output.append(['glance', 'Create_Image', 'N/A', 'N/A', results,])
+			return
+		try:
+			with open(imagepath,'rb') as data:
+                        	newimage = glance.images.create(name=image, visibility='public', disk_format='qcow2',container_format='bare')
+                        	glance.images.upload(newimage.id, data)
+			results = 'OK'
+			images.append(newimage.id)
+		except Exception as error:
+			errors.append('Create_Image')
+			results = error
+			images.append(None)
+		if verbose:
+			print "Create_Image: %s" % image
+			output.append(['glance', 'Create_Image', image, image, results,])
+	def Create_Role(self, keystone, name, roles=None, errors=None, output=None, verbose=False):
+		try:
+			role = keystone.roles.create(name=name)
+			results = 'OK'
+			roles.append(role.id)
+		except Exception as error:
+			errors.append('Create_Role')
+			results = error
+			roles.append(None)
+		if verbose:
+			print "Create_Role: %s" % name
+			output.append(['keystone', 'Create_Role', name, name, results,])
 	def Create_Tenant(self, keystone, name, description, tenants=None, errors=None, output=None, verbose=False):
 		try:
 			tenant = keystone.tenants.create(tenant_name=name, description=description,enabled=True)
@@ -136,45 +187,23 @@ class Openstuck():
 		if verbose:
 			print "Create_User: %s" % name
 			output.append(['keystone', 'Create_User', name, name, results,])
-	def Create_Role(self, keystone, name, roles=None, errors=None, output=None, verbose=False):
-		try:
-			role = keystone.roles.create(name=name)
-			results = 'OK'
-			roles.append(role.id)
-		except Exception as error:
-			errors.append('Create_Role')
-			results = error
-			roles.append(None)
-		if verbose:
-			print "Create_Role: %s" % name
-			output.append(['keystone', 'Create_Role', name, name, results,])
-	def Add_Role(self, keystone, user, role, tenant, errors=None, output=None, verbose=False):
-		if tenant is None or user is None:
-			errors.append('Add_Role')
+	def Delete_Image(self, glance, image, errors=None, output=None, verbose=False):
+		if image is None:
+			errors.append('Delete_Image')
 			results = 'NotRun'
 			if verbose:
-				print "Add_Role: %s to %s" % ('N/A', 'N/A')
-				output.append(['keystone', 'Add_Role', 'N/A', 'N/A', results,])
+				print "Delete_Image: %s" % 'N/A'
+				output.append(['glance', 'Delete_Image', 'N/A', 'N/A', results,])
 			return
 		try:
-			keystone.roles.add_user_role(user, role, tenant)
+			glance.images.delete(image.id)
 			results = 'OK'
 		except Exception as error:
-			errors.append('Add_Role')
+			errors.append('Delete_Image')
 			results = error
 		if verbose:
-			print "Add_Role: %s to %s" % (role.name, user.name)
-			output.append(['keystone', 'Add_Role', role.name, role.name, results,])
-	def List_Role(self, keystone, errors=None, output=None, verbose=False):
-		try:
-			roles = keystone.roles.list()
-			results = 'OK'
-		except Exception as error:
-			errors.append('List_Role')
-			results = error
-		if verbose:
-			print "List_Role: allroles"
-			output.append(['keystone', 'List_Role', 'allroles', 'allroles', results,])
+			print "Delete_Image: %s" % image.name
+			output.append(['glance', 'Delete_Image', image.name, image.name, results,])
 	def Delete_Role(self, keystone, role, errors=None, output=None, verbose=False):
 		if role is None:
 			results = 'NotRun'
@@ -211,6 +240,7 @@ class Openstuck():
 	def Delete_User(self, keystone, user, errors=None, output=None, verbose=False):
 		if user is None:
 			results = 'NotRun'
+			errors.append('Delete_User')
 			if verbose:
 				print "Delete_User: %s" % 'N/A'
 				output.append(['keystone', 'Delete_User', 'N/A', 'N/A', results,])
@@ -224,6 +254,40 @@ class Openstuck():
 		if verbose:
 			print "Delete_User: %s" % user.name
 			output.append(['keystone', 'Delete_User', user.name, user.name, results,])
+	def List_Image(self, glance, image, errors=None, output=None, verbose=False):
+		if image is None:
+			results = 'NotRun'
+			errors.append('List_Image')
+			if verbose:
+				print "List_Image: %s" % 'N/A'
+				output.append(['glance', 'List_Image', 'N/A', 'N/A', results,])
+			return
+		try:
+			glance.images.get(image.id)
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Image')
+			results = error
+		if verbose:
+			print "List_Image: %s" % image.name
+			output.append(['glance', 'List_Image', image.name, image.name, results,])
+	def List_Role(self, keystone, role, errors=None, output=None, verbose=False):
+		if role is None:
+			results = 'NotRun'
+			errors.append('List_Role')
+			if verbose:
+				print "List_Role: %s" % 'N/A'
+				output.append(['keystone', 'List_Role', 'N/A', 'N/A', results,])
+			return
+		try:
+			keystone.roles.get(role.id)
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Role')
+			results = error
+		if verbose:
+			print "List_Role: %s" % role.name
+			output.append(['keystone', 'List_Role', role.name, role.name, results,])
 	def _printreport(self):
 		return self.output
 	def listservices(self):
@@ -306,9 +370,8 @@ class Openstuck():
 	        test   = 'List_Role'
 		output = mgr.list()
                 concurrency, repeat = metrics(test)
-		for step in range(repeat):
-			jobs = [ multiprocessing.Process(target=self.List_Role, args=(keystone, errors, output, self.verbose,)) for number in range(concurrency) ]
-			self._process(jobs)
+		jobs = [ multiprocessing.Process(target=self.List_Role, args=(keystone, role, errors, output, self.verbose, )) for role in roles ]
+		self._process(jobs)
 		self._report(category, test, concurrency, repeat, errors)
 		self._addrows(verbose, output)
 
@@ -349,6 +412,7 @@ class Openstuck():
 	def glancetest(self):
 		category = 'glance'
 		mgr = multiprocessing.Manager()
+		errors  = mgr.list()
 		images = mgr.list()
 		if self.verbose:
 			print "Testing Glance..."
@@ -357,17 +421,32 @@ class Openstuck():
 		glance = glanceclient.Client(endpoint, token=keystone.auth_token)
 
                 test = 'Create_Image'
-		if not self.image:
-			 raise Exception('No image defined with the OS_GLANCE_IMAGE environment variable')
-		with open(self.imagepath,'rb') as data:
-    			newimage = glance.images.create(name=self.image, visibility='public', disk_format='qcow2',container_format='bare')
-			glance.images.upload(newimage.id, data)
+		output = mgr.list()
+                concurrency, repeat = metrics(test)
+		for step in range(repeat):
+			jobs = [ multiprocessing.Process(target=self.Create_Image, args=(glance, "%s-%d-%d" % (self.image, step, number), self.imagepath, images, errors, output, self.verbose, )) for number in range(concurrency) ]
+			self._process(jobs)
+		self._report(category, test, concurrency, repeat, errors)
+		self._addrows(verbose, output)
+		images = [ glance.images.get(image_id) if image_id is not None else None for image_id in images ]
 
                 test = 'List_Image'
-		glance.images.get(newimage.id)
+		output = mgr.list()
+                concurrency, repeat = metrics(test)
+		jobs = [ multiprocessing.Process(target=self.List_Image, args=(glance, image, errors, output, self.verbose, )) for image in images ]
+		self._process(jobs)
+		self._report(category, test, concurrency, repeat, errors)
+		self._addrows(verbose, output)
 
                 test = 'Delete_Image'
-		glance.images.delete(newimage.id)
+		output = mgr.list()
+                concurrency, repeat = metrics(test)
+		jobs = [ multiprocessing.Process(target=self.Delete_Image, args=(glance, image, errors, output, self.verbose, )) for image in images ]
+		self._process(jobs)
+		self._report(category, test, concurrency, repeat, errors)
+		self._addrows(verbose, output)
+
+		self.glanceclean(images)
 	
 if __name__ == "__main__":
 	#parse options
