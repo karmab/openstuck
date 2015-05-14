@@ -268,8 +268,9 @@ class Openstuck():
                 test   = 'Create_Tenant'
 		output = mgr.list()
                 concurrency, repeat = metrics(test)
-		jobs = [ multiprocessing.Process(target=self.Create_Tenant, args=(keystone, "%s%d" % (self.tenant, i), self.description, tenants, errors, output, self.verbose,)) for i in range(concurrency) ]
-		self._process(jobs)
+		for step in range(repeat):
+			jobs = [ multiprocessing.Process(target=self.Create_Tenant, args=(keystone, "%s-%d-%d" % (self.tenant, step,number), self.description, tenants, errors, output, self.verbose,)) for number in range(concurrency) ]
+			self._process(jobs)
 		self._report(category, test, concurrency, repeat, errors)
 		self._addrows(verbose, output)
 		tenants = [ keystone.tenants.get(tenant_id) if tenant_id is not None else None for tenant_id in tenants]
@@ -277,8 +278,9 @@ class Openstuck():
 	        test   = 'Create_User'
 		output = mgr.list()
                 concurrency, repeat = metrics(test)
-		jobs = [ multiprocessing.Process(target=self.Create_User, args=(keystone, "%s%d" % (self.user, i), self.password, self.email, self._first(tenants), users, errors, output, self.verbose,)) for i in range(concurrency) ]
-		self._process(jobs)
+		for step in range(repeat):
+			jobs = [ multiprocessing.Process(target=self.Create_User, args=(keystone, "%s-%d-%d" % (self.user, step, number), self.password, self.email, self._first(tenants), users, errors, output, self.verbose,)) for number in range(concurrency) ]
+			self._process(jobs)
 		self._report(category, test, concurrency, repeat, errors)
 		self._addrows(verbose, output)
 		users = [ keystone.users.get(user_id) if user_id is not None else None for user_id in users ]
@@ -286,8 +288,9 @@ class Openstuck():
 	        test   = 'Create_Role'
 		output = mgr.list()
                 concurrency, repeat = metrics(test)
-		jobs = [ multiprocessing.Process(target=self.Create_Role, args=(keystone, "%s%d" % (self.role, i), roles, errors, output, self.verbose, )) for i in range(concurrency) ]
-		self._process(jobs)
+		for step in range(repeat):
+			jobs = [ multiprocessing.Process(target=self.Create_Role, args=(keystone, "%s-%d-%d" % (self.role, step, number), roles, errors, output, self.verbose, )) for number in range(concurrency) ]
+			self._process(jobs)
 		self._report(category, test, concurrency, repeat, errors)
 		self._addrows(verbose, output)
 		roles = [ keystone.roles.get(role_id) if role_id is not None else None for role_id in roles ]
@@ -295,7 +298,7 @@ class Openstuck():
 	        test   = 'Add_Role'
 		output = mgr.list()
                 concurrency, repeat = metrics(test)
-		jobs = [ multiprocessing.Process(target=self.Add_Role, args=(keystone, self._first(users), roles[i], self._first(tenants), errors, output, self.verbose, )) for i in range(concurrency) ]
+		jobs = [ multiprocessing.Process(target=self.Add_Role, args=(keystone, self._first(users), roles[number], self._first(tenants), errors, output, self.verbose, )) for number in range(concurrency) ]
 		self._process(jobs)
 		self._report(category, test, concurrency, repeat, errors)
 		self._addrows(verbose, output)
@@ -303,15 +306,16 @@ class Openstuck():
 	        test   = 'List_Role'
 		output = mgr.list()
                 concurrency, repeat = metrics(test)
-		jobs = [ multiprocessing.Process(target=self.List_Role, args=(keystone, errors, output, self.verbose,)) for i in range(concurrency) ]
-		self._process(jobs)
+		for step in range(repeat):
+			jobs = [ multiprocessing.Process(target=self.List_Role, args=(keystone, errors, output, self.verbose,)) for number in range(concurrency) ]
+			self._process(jobs)
 		self._report(category, test, concurrency, repeat, errors)
 		self._addrows(verbose, output)
 
 	        test   = 'Authenticate_User'
 		output = mgr.list()
                 concurrency, repeat = metrics(test)
-		jobs = [ multiprocessing.Process(target=self.Authenticate_User, args=(users[i], self.password, self.auth_url, self._first(tenants), errors, output, self.verbose, )) for i in range(concurrency) ]
+		jobs = [ multiprocessing.Process(target=self.Authenticate_User, args=(users[number], self.password, self.auth_url, self._first(tenants), errors, output, self.verbose, )) for number in range(concurrency) ]
 		self._process(jobs)
 		self._report(category, test, concurrency, repeat, errors)
 		self._addrows(verbose, output)
@@ -319,7 +323,7 @@ class Openstuck():
 		test   = 'Delete_User'
 		output = mgr.list()
                 concurrency, repeat = metrics(test)
-		jobs = [ multiprocessing.Process(target=self.Delete_User, args=(keystone, users[i], errors, output, self.verbose, )) for i in range(concurrency) ]
+		jobs = [ multiprocessing.Process(target=self.Delete_User, args=(keystone, users[number], errors, output, self.verbose, )) for number in range(concurrency) ]
 		self._process(jobs)
 		self._report(category, test, concurrency, repeat, errors)
 		self._addrows(verbose, output)
@@ -327,7 +331,7 @@ class Openstuck():
 		test   = 'Delete_Role'
 		output = mgr.list()
                 concurrency, repeat = metrics(test)
-		jobs = [ multiprocessing.Process(target=self.Delete_Role, args=(keystone, roles[i], errors, output, self.verbose, )) for i in range(concurrency) ]
+		jobs = [ multiprocessing.Process(target=self.Delete_Role, args=(keystone, roles[number], errors, output, self.verbose, )) for number in range(concurrency) ]
 		self._process(jobs)
 		self._report(category, test, concurrency, repeat, errors)
 		self._addrows(verbose, output)
@@ -335,7 +339,7 @@ class Openstuck():
 		test   = 'Delete_Tenant'
 		output = mgr.list()
                 concurrency, repeat = metrics(test)
-		jobs = [ multiprocessing.Process(target=self.Delete_Tenant, args=(keystone, tenants[i], errors, output, self.verbose, )) for i in range(concurrency) ]
+		jobs = [ multiprocessing.Process(target=self.Delete_Tenant, args=(keystone, tenants[number], errors, output, self.verbose, )) for number in range(concurrency) ]
 		self._process(jobs)
 		self._report(category, test, concurrency, repeat, errors)
 		self._addrows(verbose, output)
