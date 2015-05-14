@@ -18,6 +18,8 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
      
 -  TEST YOUR OPENSTACK DEPLOYMENT
     - `openstuck.py`
+-  TEST ONLY KEYSTONE
+    - `openstuck.py -v -K`
 
 ##Problems?
 
