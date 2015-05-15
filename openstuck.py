@@ -24,6 +24,7 @@ __status__     = 'Testing'
 
 keystonedefaulttests   = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_Role', 'ListRole', 'Authenticate_User', 'Delete_User', 'Delete_Role', 'Delete_Tenant']
 glancedefaulttests   = ['Create_Image','List_Image','Delete_Image']
+cinderdefaulttests   = ['Create_Volume','List_Volume','Delete_Volume']
 
 def _keystonecreds():
 	keystoneinfo                = {}
@@ -51,11 +52,16 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, endpoint, tenant='acmetenant', user='acmeuser', password='acmepassword', role='acmerole', email='acme@xxx.com', description='Members of the ACME Group', image='acmeimage', imagepath=None, debug=False,verbose=False):
+	def __init__(self, keystonecredentials, novacredentials, endpoint, tenant='acmetenant', user='acmeuser', password='acmepassword', role='acmerole', email='acme@xxx.com', description='Members of the ACME Group', image='acmeimage', imagepath=None, volume='acmevolume', volumetype=None, debug=False,verbose=False):
 		self.auth_url    = keystonecredentials['auth_url']
 		self.novacreds   = novacredentials
 		self.debug       = debug
-		self.keystone    = keystoneclient.Client(**keystonecredentials)
+		try:
+			self.keystone    = keystoneclient.Client(**keystonecredentials)
+		except:
+			print "Issue making initial connection to keystone.Leaving"
+			os._exit(1)
+			keystoneclient.openstack.common.apiclient.exceptions.AuthorizationFailure
 		self.output      = PrettyTable(['Category', 'Description', 'Concurrency', 'Repeat', 'Time(Seconds)', 'Result'])
 		self.output.align['Category'] = "l"
 		self.endpoint    = endpoint
@@ -67,6 +73,8 @@ class Openstuck():
 		self.description = description
 		self.image       = image
 		self.imagepath   = imagepath
+		self.volume      = volume
+		self.volumetype  = volumetype
 		self.debug       = debug
 		self.verbose     = verbose
 	def _first(self, elements):
@@ -90,13 +98,13 @@ class Openstuck():
 		else:
 			self.output.add_row([category, test, concurrency, repeat,time, 'OK'])
 	def Add_Role(self, keystone, user, role, tenant, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		if tenant is None or user is None:
 			errors.append('Add_Role')
 			results = 'NotRun'
 			if verbose:
-				print "Add_Role: %s to %s" % ('N/A', 'N/A')
-				output.append(['keystone', 'Add_Role', 'N/A', 'N/A', runningtime, results,])
+				print "Add_Role: %s to %s 0 seconds" % ('N/A', 'N/A')
+				output.append(['keystone', 'Add_Role', 'N/A', 'N/A', '0', results,])
 			return
 		try:
 			keystone.roles.add_user_role(user, role, tenant)
@@ -105,16 +113,18 @@ class Openstuck():
 			errors.append('Add_Role')
 			results = error
 		if verbose:
-			print "Add_Role: %s to %s" % (role.name, user.name)
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Add_Role: %s to %s %s seconds" % (role.name, user.name, runningtime)
 			output.append(['keystone', 'Add_Role', role.name, role.name, runningtime, results,])
 	def Authenticate_User(self, user, password, auth_url, tenant=None, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		if user is None or tenant is None:
 			errors.append('Authenticate_User')
 			results = 'NotRun'
 			if verbose:
-				print "Authenticate_User: %s in %s" % ('N/A', 'N/A')
-				output.append(['keystone', 'Authenticate_User', 'N/A', 'N/A', runningtime, results,])
+				print "Authenticate_User: %s in %s 0 seconds" % ('N/A', 'N/A')
+				output.append(['keystone', 'Authenticate_User', 'N/A', 'N/A', '0', results,])
 			return
 		try:
 			usercredentials = { 'username' : user.name, 'password' : password, 'auth_url' : auth_url , 'tenant_name' : tenant.name }
@@ -124,17 +134,19 @@ class Openstuck():
 			errors.append('Authenticate_User')
 			results = error
 		if verbose:
-			print "Authenticate_User: %s in %s" % (user.name, tenant.name)
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Authenticate_User: %s in %s %s seconds" % (user.name, tenant.name, runningtime)
 			output.append(['keystone', 'Authenticate_User', user.name, user.name, runningtime, results,])
 	def Create_Image(self, glance, image, imagepath, images=None, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		if imagepath is None:
 			errors.append('Create_Image')
 			results = 'Missing OS_GLANCE_IMAGE_PATH Environment variable for path'
 			images.append(None)
 			if verbose:
 				print "Create_Image: %s" % 'N/A'
-				output.append(['glance', 'Create_Image', 'N/A', 'N/A', runningtime, results,])
+				output.append(['glance', 'Create_Image', 'N/A', 'N/A', '0', results,])
 			return
 		try:
 			with open(imagepath,'rb') as data:
@@ -147,10 +159,12 @@ class Openstuck():
 			results = error
 			images.append(None)
 		if verbose:
-			print "Create_Image: %s" % image
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_Image: %s %s seconds" % (image, runningtime )
 			output.append(['glance', 'Create_Image', image, image, runningtime, results,])
 	def Create_Role(self, keystone, name, roles=None, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		try:
 			role = keystone.roles.create(name=name)
 			results = 'OK'
@@ -160,10 +174,12 @@ class Openstuck():
 			results = error
 			roles.append(None)
 		if verbose:
-			print "Create_Role: %s" % name
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Create_Role: %s %s seconds" % (name, runningtime)
 			output.append(['keystone', 'Create_Role', name, name, runningtime, results,])
 	def Create_Tenant(self, keystone, name, description, tenants=None, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		try:
 			tenant = keystone.tenants.create(tenant_name=name, description=description,enabled=True)
 			results = 'OK'
@@ -173,17 +189,19 @@ class Openstuck():
 			results = error
 			tenants.append(None)
 		if verbose:
-			print "Create_Tenant:%s" % (name)
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_Tenant:%s %s seconds" % (name, runningtime)
 			output.append(['keystone', 'Create_Tenant', name, name, runningtime, results,])
 	def Create_User(self, keystone, name, password, email,tenant, users=None, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		if tenant is None:
 			errors.append('Create_User')
 			results = 'NotRun'
 			users.append(None)
 			if verbose:
-				print "Create_User: %s" % 'N/A'
-				output.append(['keystone', 'Create_User', 'N/A', 'N/A', runningtime, results,])
+				print "Create_User: %s 0 seconds" % 'N/A'
+				output.append(['keystone', 'Create_User', 'N/A', 'N/A', '0', results,])
 			return
 		try:
 			user = keystone.users.create(name=name, password=password, email=email, tenant_id=tenant.id)
@@ -194,16 +212,18 @@ class Openstuck():
 			results = error
 			users.append(None)
 		if verbose:
-			print "Create_User: %s" % name
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_User: %s %s seconds" % (name, runningtime)
 			output.append(['keystone', 'Create_User', name, name, runningtime, results,])
 	def Delete_Image(self, glance, image, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		if image is None:
 			errors.append('Delete_Image')
 			results = 'NotRun'
 			if verbose:
-				print "Delete_Image: %s" % 'N/A'
-				output.append(['glance', 'Delete_Image', 'N/A', 'N/A', runningtime, results,])
+				print "Delete_Image: %s 0 seconds" % 'N/A'
+				output.append(['glance', 'Delete_Image', 'N/A', 'N/A', '0', results,])
 			return
 		imagename = image.name
 		try:
@@ -213,15 +233,17 @@ class Openstuck():
 			errors.append('Delete_Image')
 			results = error
 		if verbose:
-			print "Delete_Image: %s" % imagename
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Image: %s %s seconds" % (imagename, runningtime)
 			output.append(['glance', 'Delete_Image', imagename, imagename, runningtime, results,])
 	def Delete_Role(self, keystone, role, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		if role is None:
 			results = 'NotRun'
 			if verbose:
-				print "Delete_Role: %s" % 'N/A'
-				output.append(['keystone', 'Delete_Role', 'N/A', 'N/A', runningtime, results,])
+				print "Delete_Role: %s 0 seconds" % 'N/A'
+				output.append(['keystone', 'Delete_Role', 'N/A', 'N/A', '0', results,])
 			return
 		rolename = role.name
 		try:
@@ -231,16 +253,18 @@ class Openstuck():
 			errors.append('Delete_Role')
 			results = error
 		if verbose:
-			print "Delete_Role: %s" % rolename
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Role: %s %s seconds" % (rolename, runningtime)
 			output.append(['keystone', 'Delete_Role', rolename, rolename, runningtime, results,])
 	def Delete_Tenant(self, keystone, tenant, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		if tenant is None:
 			errors.append('Delete_Tenant')
 			results = 'NotRun'
 			if verbose:
-				print "Delete_Tenant: %s" % 'N/A'
-				output.append(['keystone', 'Delete_Tenant', 'N/A', 'N/A', runningtime, results,])
+				print "Delete_Tenant: %s 0 seconds" % 'N/A'
+				output.append(['keystone', 'Delete_Tenant', 'N/A', 'N/A', '0', results,])
 			return
 		tenantname = tenant.name
 		try:
@@ -250,16 +274,18 @@ class Openstuck():
 			errors.append('Delete_Tenant')
 			results = error
 		if verbose:
-			print "Delete_Tenant: %s" % tenantname
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Delete_Tenant: %s %s seconds" % (tenantname, runningtime)
 			output.append(['keystone', 'Delete_Tenant', tenantname, tenantname, runningtime, results,])
 	def Delete_User(self, keystone, user, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		if user is None:
 			results = 'NotRun'
 			errors.append('Delete_User')
 			if verbose:
-				print "Delete_User: %s" % 'N/A'
-				output.append(['keystone', 'Delete_User', 'N/A', 'N/A', runningtime, results,])
+				print "Delete_User: %s 0 seconds" % 'N/A'
+				output.append(['keystone', 'Delete_User', 'N/A', 'N/A', '0', results,])
 			return
 		username = user.name
 		try:
@@ -269,16 +295,18 @@ class Openstuck():
 			errors.append('Delete_User')
 			results = error
 		if verbose:
-			print "Delete_User: %s" % username
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Delete_User: %s %s seconds" % (username, runningtime)
 			output.append(['keystone', 'Delete_User', username, username, runningtime, results,])
 	def List_Image(self, glance, image, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		if image is None:
 			results = 'NotRun'
 			errors.append('List_Image')
 			if verbose:
-				print "List_Image: %s" % 'N/A'
-				output.append(['glance', 'List_Image', 'N/A', 'N/A', runningtime, results,])
+				print "List_Image: %s 0 seconds" % 'N/A'
+				output.append(['glance', 'List_Image', 'N/A', 'N/A', '0', results,])
 			return
 		try:
 			glance.images.get(image.id)
@@ -287,16 +315,18 @@ class Openstuck():
 			errors.append('List_Image')
 			results = error
 		if verbose:
-			print "List_Image: %s" % image.name
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Image: %s %s seconds" % (image.name, runningtime)
 			output.append(['glance', 'List_Image', image.name, image.name, runningtime, results,])
 	def List_Role(self, keystone, role, errors=None, output=None, verbose=False):
-		runningtime = ''
+		starttime = time.time()
 		if role is None:
 			results = 'NotRun'
 			errors.append('List_Role')
 			if verbose:
 				print "List_Role: %s" % 'N/A'
-				output.append(['keystone', 'List_Role', 'N/A', 'N/A', runningtime, results,])
+				output.append(['keystone', 'List_Role', 'N/A', 'N/A', '0', results,])
 			return
 		try:
 			keystone.roles.get(role.id)
@@ -305,7 +335,9 @@ class Openstuck():
 			errors.append('List_Role')
 			results = error
 		if verbose:
-			print "List_Role: %s" % role.name
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Role: %s %s seconds" % (role.name, runningtime)
 			output.append(['keystone', 'List_Role', role.name, role.name, runningtime, results,])
 	def _printreport(self):
 		return self.output
@@ -318,26 +350,69 @@ class Openstuck():
 			output.add_row([service.name, service.type, status])
 		return output
 	def keystoneclean(self, tenants, users, roles):
-		try:
-			if self.verbose:
-				print "Cleaning Keystone..."
-			keystone = self.keystone
-			for tenant in tenants:
-				tenant.delete()
-			for user in users:
-				user.delete()
-			for role in roles:
-				role.delete()
-		except:	
-			pass
+		if self.verbose:
+			print "Cleaning Keystone..."
+		keystone = self.keystone
+		for tenant in tenants:
+			if tenant is None:
+				continue
+			else:
+				try :
+					tenant.delete()	
+				except:
+					continue
+		for user in users:
+			if user is None:
+				continue
+			else:
+				try:
+					user.delete()
+				except:
+					continue
+		for role in roles:
+			if role is None:
+				continue
+			else:
+				try:
+					role.delete()
+				except:
+					continue
 	def glanceclean(self, image):
-		try:
+#		try:
+#			print "Cleaning Glance..."
+#			for img in glance.images.list():
+#				if img['name'] == image:
+#					glance.images.delete(img['id'])
+#		except:
+#			pass
+
+		if self.verbose:
 			print "Cleaning Glance..."
-			for img in glance.images.list():
-				if img['name'] == image:
-					glance.images.delete(img['id'])
-		except:
-			pass
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
+		glance = glance.Client(endpoint, token=keystone.auth_token)
+		for image in images:
+			if image is None:
+				continue
+			else:
+				try:
+					glance.images.delete(image.id)
+				except:
+					continue
+	def cinderclean(self, volumes):
+		if self.verbose:
+			print "Cleaning Cinder..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='volume',endpoint_type=self.endpoint)
+		cinder = cinderclient.Client(endpoint, token=keystone.auth_token)
+		for volume in volumes:
+			if volume is None:
+				continue
+			else:
+				try:
+					cinder.volumes.delete(volume.id)
+				except:
+					continue
 	def keystonetest(self):
 		category = 'keystone'
 		mgr = multiprocessing.Manager()
@@ -359,7 +434,7 @@ class Openstuck():
 		endtime    = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 		tenants = [ keystone.tenants.get(tenant_id) if tenant_id is not None else None for tenant_id in tenants]
@@ -374,7 +449,7 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 		users = [ keystone.users.get(user_id) if user_id is not None else None for user_id in users ]
@@ -389,7 +464,7 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 		roles = [ keystone.roles.get(role_id) if role_id is not None else None for role_id in roles ]
@@ -403,7 +478,7 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 
@@ -416,7 +491,7 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 
@@ -429,7 +504,7 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 
@@ -442,7 +517,7 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 
@@ -455,7 +530,7 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 
@@ -468,7 +543,7 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 
@@ -495,7 +570,7 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 		images = [ glance.images.get(image_id) if image_id is not None else None for image_id in images ]
@@ -509,7 +584,7 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 
@@ -522,11 +597,64 @@ class Openstuck():
 		endtime = time.time()
 		runningtime = "%0.3f" % (endtime -starttime)
 		if verbose:
-			print "%s took %s seconds" % (test, runningtime)
+			print "%s  %s seconds" % (test, runningtime)
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 
 		self.glanceclean(images)
+	def cindertest(self):
+		category = 'cinder'
+		mgr = multiprocessing.Manager()
+		errors  = mgr.list()
+		volumes = mgr.list()
+		if self.verbose:
+			print "Testing Cinder..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='volume',endpoint_type=self.endpoint)
+		cinder = cinderclient.Client(endpoint, token=keystone.auth_token)
+
+                test = 'Create_volume'
+		output = mgr.list()
+                concurrency, repeat = metrics(test)
+		starttime = time.time()
+		for step in range(repeat):
+			jobs = [ multiprocessing.Process(target=self.Create_Volume, args=(cinder, "%s-%d-%d" % (self.volume, step, number), self.volumetype, volumes, errors, output, self.verbose, )) for number in range(concurrency) ]
+			self._process(jobs)
+		endtime = time.time()
+		runningtime = "%0.3f" % (endtime -starttime)
+		if verbose:
+			print "%s  %s seconds" % (test, runningtime)
+		self._report(category, test, concurrency, repeat, runningtime, errors)
+		self._addrows(verbose, output)
+		volumes = [ cinder.volumes.get(volume_id) if volume_id is not None else None for volume_id in volumes ]
+
+                test = 'List_Volumes'
+		output = mgr.list()
+                concurrency, repeat = metrics(test)
+		starttime = time.time()
+		jobs = [ multiprocessing.Process(target=self.List_Volume, args=(cinder, volume, errors, output, self.verbose, )) for volume in volumes ]
+		self._process(jobs)
+		endtime = time.time()
+		runningtime = "%0.3f" % (endtime -starttime)
+		if verbose:
+			print "%s  %s seconds" % (test, runningtime)
+		self._report(category, test, concurrency, repeat, runningtime, errors)
+		self._addrows(verbose, output)
+
+                test = 'Delete_Volume'
+		output = mgr.list()
+                concurrency, repeat = metrics(test)
+		starttime = time.time()
+		jobs = [ multiprocessing.Process(target=self.Delete_Volume, args=(glance, volume, errors, output, self.verbose, )) for volume in volume ]
+		self._process(jobs)
+		endtime = time.time()
+		runningtime = "%0.3f" % (endtime -starttime)
+		if verbose:
+			print "%s  %s seconds" % (test, runningtime)
+		self._report(category, test, concurrency, repeat, runningtime, errors)
+		self._addrows(verbose, output)
+
+		self.cinderclean(volumes)
 	
 if __name__ == "__main__":
 	#parse options
