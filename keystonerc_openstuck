@@ -1,2 +1,3 @@
 export OS_GLANCE_IMAGE_PATH="/tmp/cirros-0.3.3-x86_64-disk.img"
 export Create_Tenant=5:5
+export Create_Alarm=8:5

@@ -16,6 +16,7 @@ import cinderclient.v2.client as cinderclient
 from neutronclient.neutron import client as neutronclient
 from novaclient import client as novaclient
 from heatclient import client as heatclient
+import ceilometerclient.client as ceilometerclient
 import json
 import yaml
 
@@ -66,44 +67,47 @@ def metrics(key):
 
 class Openstuck():
 	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=False):
-		self.auth_url    = keystonecredentials['auth_url']
-		self.debug       = debug
-		self.novacredentials     = novacredentials
+		self.auth_username    = keystonecredentials['username']
+		self.auth_password    = keystonecredentials['password']
+		self.auth_tenant_name = keystonecredentials['tenant_name']
+		self.auth_url         = keystonecredentials['auth_url']
+		self.debug            = debug
+		self.novacredentials  = novacredentials
 		try:
 			self.keystone    = keystoneclient.Client(**keystonecredentials)
 		except Exception as e:
 			print "Got the following issue:"
 			print e
 			os._exit(1)
-		self.keystonetests   = keystonetests 
-		self.glancetests     = glancetests 
-		self.cindertests     = cindertests 
-		self.neutrontests    = neutrontests 
-		self.novatests       = novatests 
-		self.heattests       = heattests 
-		self.ceilometertests = ceilometertests 
-		self.swifttests      = swifttests
-		self.output          = PrettyTable(['Category', 'Description', 'Concurrency', 'Repeat', 'Time(Seconds)', 'Result'])
+		self.keystonetests    = keystonetests 
+		self.glancetests      = glancetests 
+		self.cindertests      = cindertests 
+		self.neutrontests     = neutrontests 
+		self.novatests        = novatests 
+		self.heattests        = heattests 
+		self.ceilometertests  = ceilometertests 
+		self.swifttests       = swifttests
+		self.output           = PrettyTable(['Category', 'Description', 'Concurrency', 'Repeat', 'Time(Seconds)', 'Result'])
 		self.output.align['Category'] = "l"
-		self.endpoint        = endpoint
-        	self.tenant          = "%stenant" % project
-        	self.user            = "%suser" % project
-        	self.password        = "%spassword" % project
-        	self.role            = "%srole" % project
-        	self.tenant          = "%stenant" % project
-        	self.email           = "%suser@xxx.com" % project
-        	self.description     = "Members of the %s corp" % project
-        	self.image           = "%simage" % project
-		self.imagepath       = imagepath
-        	self.volume          = "%svolume" % project
-        	self.volumetype      = volumetype
-        	self.network         = "%snetwork" % project
-        	self.server          = "%sserver" % project
-        	self.stack           = "%sstack" % project
-        	self.alarm           = "%salarm" % project
-        	self.container       = "%scontainer" % project
-		self.debug           = debug
-		self.verbose         = verbose
+		self.endpoint         = endpoint
+        	self.tenant           = "%stenant" % project
+        	self.user             = "%suser" % project
+        	self.password         = "%spassword" % project
+        	self.role             = "%srole" % project
+        	self.tenant           = "%stenant" % project
+        	self.email            = "%suser@xxx.com" % project
+        	self.description      = "Members of the %s corp" % project
+        	self.image            = "%simage" % project
+		self.imagepath        = imagepath
+        	self.volume           = "%svolume" % project
+        	self.volumetype       = volumetype
+        	self.network          = "%snetwork" % project
+        	self.server           = "%sserver" % project
+        	self.stack            = "%sstack" % project
+        	self.alarm            = "%salarm" % project
+        	self.container        = "%scontainer" % project
+		self.debug            = debug
+		self.verbose          = verbose
 	def _first(self, elements):
 		for element in elements:
 			if element is not None:
@@ -165,6 +169,21 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Authenticate_User: %s in %s %s seconds" % (user.name, tenant.name, runningtime)
 			output.append(['keystone', 'Authenticate_User', user.name, user.name, runningtime, results,])
+	def Create_Alarm(self, ceilometer, alarm, alarms=None, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		try:
+			newalarm = ceilometer.alarms.create(name=alarm, threshold=100, meter_name=alarm)
+			results = 'OK'
+			alarms.append(newalarm.id)
+		except Exception as error:
+			errors.append('Create_Alarm')
+			results = error
+			alarms.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_Alarm: %s %s seconds" % (alarm, runningtime )
+			output.append(['ceilometer', 'Create_Alarm', alarm, alarm, runningtime, results,])
 	def Create_Image(self, glance, image, imagepath, images=None, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		try:
@@ -346,6 +365,27 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_User: %s %s seconds" % (name, runningtime)
 			output.append(['keystone', 'Create_User', name, name, runningtime, results,])
+	def Delete_Alarm(self, ceilometer, alarm, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		if alarm is None:
+			errors.append('Delete_Alarm')
+			results = 'NotRun'
+			if verbose:
+				print "Delete_Alarm: %s 0 seconds" % 'N/A'
+				output.append(['ceilometer', 'Delete_Alarm', 'N/A', 'N/A', '0', results,])
+			return
+		alarmname = alarm.name
+		try:
+			alarm.delete()
+			results = 'OK'
+		except Exception as error:
+			errors.append('Delete_Alarm')
+			results = error
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Alarm: %s %s seconds" % (alarmname, runningtime)
+			output.append(['ceilometer', 'Delete_Alarm', alarmname, alarmname, runningtime, results,])
 	def Delete_Image(self, glance, image, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		if image is None:
@@ -517,6 +557,26 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Volume: %s %s seconds" % (volumename, runningtime)
 			output.append(['cinder', 'Delete_Volume', volumename, volumename, runningtime, results,])
+	def List_Alarm(self, ceilometer, alarm, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		if alarm is None:
+			results = 'NotRun'
+			errors.append('List_Alarm')
+			if verbose:
+				print "List_Alarm: %s 0 seconds" % 'N/A'
+				output.append(['ceilometer', 'List_Alarm', 'N/A', 'N/A', '0', results,])
+			return
+		try:
+			ceilometer.alarms.get(alarm.id)
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Alarm')
+			results = error
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Alarm: %s %s seconds" % (alarm.name, runningtime)
+			output.append(['ceilometer', 'List_Alarm', alarm.name, alarm.name, runningtime, results,])
 	def List_Image(self, glance, image, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		if image is None:
@@ -754,9 +814,8 @@ class Openstuck():
 	def ceilometerclean(self, alarms):
 		if self.verbose:
 			print "Cleaning Ceilometer..."
-		keystone = self.keystone
-		endpoint = keystone.service_catalog.url_for(service_type='compute',endpoint_type=self.endpoint)
-		nova     = ceilometerclient.Client(endpoint, token=keystone.auth_token)
+		os_username, os_password, os_tenant_name, os_auth_url = self.auth_username, self.auth_password, self.auth_tenant_name, self.auth_url
+                ceilometer = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url)
 		for alarm in alarms:
 			if alarm is None:
 				continue
@@ -1228,9 +1287,8 @@ class Openstuck():
 		alarms = mgr.list()
 		if self.verbose:
 			print "Testing Ceilometer..."
-		keystone = self.keystone
-		endpoint = keystone.service_catalog.url_for(service_type='metering',endpoint_type=self.endpoint)
-		ceilometer = ceilometerclient.Client(endpoint, token=keystone.auth_token)
+		os_username, os_password, os_tenant_name, os_auth_url = self.auth_username, self.auth_password, self.auth_tenant_name, self.auth_url
+		ceilometer = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url)
 	
 		test = 'Create_Alarm'
 		if test in tests:
@@ -1406,12 +1464,12 @@ if __name__ == "__main__":
 	if testheat or testall:
 		o.heattest()
 	if testceilometer or testceilometer:
-		o.heattest()
+		o.ceilometertest()
 	if testswift or testall:
 		o.swifttest()
 	if testha or testall:
 		o.alltest()
-	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testswift or testha or testall:
+	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testceilometer or testswift or testha or testall:
 		if verbose:
 			print "Testing Keystone..."
 			print "Final report:"

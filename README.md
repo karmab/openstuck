@@ -44,6 +44,10 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - wait/check for correct status before reporting instances test creation/deletion as ok 
 - wait/check for correct status before reporting heat test creation/deletion as ok 
 - redefine a more advanced heat template for default testing
+- improve values for testing alarms creation (threshold and metrics with some sense)
+- add listmeters to test ( and stressing of instance to check it s reported by ceilometer)
+
+
 
 ##Problems?
 
