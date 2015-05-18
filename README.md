@@ -21,6 +21,10 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 -  TEST ONLY KEYSTONE
     - `openstuck.py -v -K`
 
+##TODO LIST 
+
+- wait/check for correct status before reporting volumes test creation/deletion as ok 
+
 ##Problems?
 
 Send me a mail at [karimboumedhel@gmail.com](mailto:karimboumedhel@gmail.com) !

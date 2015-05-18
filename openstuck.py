@@ -12,6 +12,9 @@ import sys
 import time
 import keystoneclient.v2_0.client as keystoneclient
 import glanceclient.v2.client as glanceclient
+import cinderclient.v2.client as cinderclient
+from neutronclient.neutron import client as neutronclient
+
 
 __author__     = 'Karim Boumedhel'
 __credits__    = ['Karim Boumedhel']
@@ -22,9 +25,15 @@ __email__      = 'karim.boumedhel@gmail.com'
 __status__     = 'Testing'
 
 
-keystonedefaulttests   = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_Role', 'ListRole', 'Authenticate_User', 'Delete_User', 'Delete_Role', 'Delete_Tenant']
-glancedefaulttests   = ['Create_Image','List_Image','Delete_Image']
-cinderdefaulttests   = ['Create_Volume','List_Volume','Delete_Volume']
+keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_Role', 'ListRole', 'Authenticate_User', 'Delete_User', 'Delete_Role', 'Delete_Tenant']
+glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
+cinderdefaulttests      = ['Create_Volume', 'List_Volume', 'Delete_Volume']
+cinderbackupdefaulttests = ['Create_Backup', 'List_Backup', 'Delete_Backup']
+neutrondefaulttests      = ['Create_Network', 'List_Network', 'Delete_Network']
+novadefaulttests         = ['Create_Instance', 'List_Instance', 'Delete_Instance']
+heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
+ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'Delete_Alarm']
+swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
 
 def _keystonecreds():
 	keystoneinfo                = {}
@@ -52,31 +61,41 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, endpoint, tenant='acmetenant', user='acmeuser', password='acmepassword', role='acmerole', email='acme@xxx.com', description='Members of the ACME Group', image='acmeimage', imagepath=None, volume='acmevolume', volumetype=None, debug=False,verbose=False):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=False):
 		self.auth_url    = keystonecredentials['auth_url']
-		self.novacreds   = novacredentials
 		self.debug       = debug
+		self.novacredentials     = novacredentials
 		try:
 			self.keystone    = keystoneclient.Client(**keystonecredentials)
-		except:
-			print "Issue making initial connection to keystone.Leaving"
+		except Exception as e:
+			print "Got the following issue:"
+			print e
 			os._exit(1)
-			keystoneclient.openstack.common.apiclient.exceptions.AuthorizationFailure
-		self.output      = PrettyTable(['Category', 'Description', 'Concurrency', 'Repeat', 'Time(Seconds)', 'Result'])
+		self.keystonetests   = keystonetests 
+		self.glancetests     = glancetests 
+		self.cindertests     = cindertests 
+		self.neutrontests    = neutrontests 
+		self.novatests       = novatests 
+		self.heattests       = heattests 
+		self.ceilometertests = ceilometertests 
+		self.swifttests      = swifttests
+		self.output          = PrettyTable(['Category', 'Description', 'Concurrency', 'Repeat', 'Time(Seconds)', 'Result'])
 		self.output.align['Category'] = "l"
-		self.endpoint    = endpoint
-		self.tenant      = tenant
-		self.user        = user
-		self.password    = password
-		self.role 	 = role
-		self.email       = email
-		self.description = description
-		self.image       = image
-		self.imagepath   = imagepath
-		self.volume      = volume
-		self.volumetype  = volumetype
-		self.debug       = debug
-		self.verbose     = verbose
+		self.endpoint        = endpoint
+        	self.tenant          = "%stenant" % project
+        	self.user            = "%suser" % project
+        	self.password        = "%spassword" % project
+        	self.role            = "%srole" % project
+        	self.tenant          = "%stenant" % project
+        	self.email           = "%suser@xxx.com" % project
+        	self.description     = "Members of the %s corp" % project
+        	self.image           = "%simage" % project
+		self.imagepath       = imagepath
+        	self.volume          = "%svolume" % project
+        	self.volumetype      = volumetype
+        	self.network         = "%snetwork" % project
+		self.debug           = debug
+		self.verbose         = verbose
 	def _first(self, elements):
 		for element in elements:
 			if element is not None:
@@ -140,18 +159,11 @@ class Openstuck():
 			output.append(['keystone', 'Authenticate_User', user.name, user.name, runningtime, results,])
 	def Create_Image(self, glance, image, imagepath, images=None, errors=None, output=None, verbose=False):
 		starttime = time.time()
-		if imagepath is None:
-			errors.append('Create_Image')
-			results = 'Missing OS_GLANCE_IMAGE_PATH Environment variable for path'
-			images.append(None)
-			if verbose:
-				print "Create_Image: %s" % 'N/A'
-				output.append(['glance', 'Create_Image', 'N/A', 'N/A', '0', results,])
-			return
 		try:
-			with open(imagepath,'rb') as data:
-                        	newimage = glance.images.create(name=image, visibility='public', disk_format='qcow2',container_format='bare')
-                        	glance.images.upload(newimage.id, data)
+			newimage = glance.images.create(name=image, visibility='public', disk_format='qcow2',container_format='bare')
+			if imagepath is not None:
+				with open(imagepath,'rb') as data:
+                        		glance.images.upload(newimage.id, data)
 			results = 'OK'
 			images.append(newimage.id)
 		except Exception as error:
@@ -163,6 +175,39 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Image: %s %s seconds" % (image, runningtime )
 			output.append(['glance', 'Create_Image', image, image, runningtime, results,])
+	def Create_Network(self, neutron, network, networks=None, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		try:
+			newnetwork = {'name': network, 'admin_state_up': True}
+			newnetwork = neutron.create_network({'network':newnetwork})
+			results = 'OK'
+			networks.append(newnetwork['network']['id'])
+		except Exception as error:
+			errors.append('Create_Network')
+			results = error
+			networks.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_Network: %s %s seconds" % (network, runningtime )
+			output.append(['neutron', 'Create_Network', network, network, runningtime, results,])
+	def Create_Volume(self, cinder, volume, volumes=None, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		try:
+			newvolume = cinder.volumes.create(size=1, name=volume)
+			results = 'OK'
+			#while cinder.volumes.get(newvolume.id).status != 'available':
+        		#	time.sleep(0.2)
+			volumes.append(newvolume.id)
+		except Exception as error:
+			errors.append('Create_Volume')
+			results = error
+			volumes.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_Volume: %s %s seconds" % (volume, runningtime )
+			output.append(['cinder', 'Create_Volume', volume, volume, runningtime, results,])
 	def Create_Role(self, keystone, name, roles=None, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		try:
@@ -193,6 +238,30 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Tenant:%s %s seconds" % (name, runningtime)
 			output.append(['keystone', 'Create_Tenant', name, name, runningtime, results,])
+	def Create_TypedVolume(self, cinder, volume, volumetype, volumes=None, errors=None, output=None, verbose=False):
+		if volumetype is None:
+			results = 'Missing OS_CINDER_VOLUME_TYPE environment variable'
+			volumes.append(None)
+			if verbose:
+				print "Create_TypedVolume: %s 0 seconds" % 'N/A'
+				output.append(['cinder', 'Create_TypedVolume', 'N/A', 'N/A', '0', results,])
+			return
+		starttime = time.time()
+		try:
+			newvolume = cinder.volumes.create(size=1, name=volume, volume_type=volumetype)
+			results = 'OK'
+			#while cinder.volumes.get(newvolume.id).status != 'available':
+        		#	time.sleep(0.2)
+			volumes.append(newvolume.id)
+		except Exception as error:
+			errors.append('Create_TypedVolume')
+			results = error
+			volumes.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_TypedVolume: %s %s seconds" % (volume, runningtime )
+			output.append(['cinder', 'Create_TypedVolume', volume, volume, runningtime, results,])
 	def Create_User(self, keystone, name, password, email,tenant, users=None, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		if tenant is None:
@@ -237,6 +306,28 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Image: %s %s seconds" % (imagename, runningtime)
 			output.append(['glance', 'Delete_Image', imagename, imagename, runningtime, results,])
+	def Delete_Network(self, neutron, network, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		if network is None:
+			errors.append('Delete_Network')
+			results = 'NotRun'
+			if verbose:
+				print "Delete_Network: %s 0 seconds" % 'N/A'
+				output.append(['neutron', 'Delete_Network', 'N/A', 'N/A', '0', results,])
+			return
+		networkname = network['name']
+		networkid   = network['id']
+		try:
+			neutron.delete_network(networkid)
+			results = 'OK'
+		except Exception as error:
+			errors.append('Delete_Network')
+			results = error
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Network: %s %s seconds" % (networkname, runningtime)
+			output.append(['neutron', 'Delete_Network', networkname, networkname, runningtime, results,])
 	def Delete_Role(self, keystone, role, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		if role is None:
@@ -299,6 +390,29 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Delete_User: %s %s seconds" % (username, runningtime)
 			output.append(['keystone', 'Delete_User', username, username, runningtime, results,])
+	def Delete_Volume(self, cinder, volume, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		if volume is None:
+			errors.append('Delete_Volume')
+			results = 'NotRun'
+			if verbose:
+				print "Delete_Volume: %s 0 seconds" % 'N/A'
+				output.append(['cinder', 'Delete_Volume', 'N/A', 'N/A', '0', results,])
+			return
+		volumename = volume.name
+		try:
+			volume.delete()
+			#while cinder.volumes.get(volume.id).status != 'available':
+        		#	time.sleep(0.2)
+			results = 'OK'
+		except Exception as error:
+			errors.append('Delete_Volume')
+			results = error
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Volume: %s %s seconds" % (volumename, runningtime)
+			output.append(['cinder', 'Delete_Volume', volumename, volumename, runningtime, results,])
 	def List_Image(self, glance, image, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		if image is None:
@@ -319,6 +433,30 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Image: %s %s seconds" % (image.name, runningtime)
 			output.append(['glance', 'List_Image', image.name, image.name, runningtime, results,])
+	def List_Network(self, neutron, network, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		if network is None:
+			results = 'NotRun'
+			errors.append('List_Network')
+			if verbose:
+				print "List_Network: %s 0 seconds" % 'N/A'
+				output.append(['neutron', 'List_Network', 'N/A', 'N/A', '0', results,])
+			return
+		network_id   = network['id']
+		network_name = network['name']
+		try:
+			findnetworks = [ net for net in neutron.list_networks()['networks'] if net['id'] == network_id ]
+			if len(findnetworks) == 0:
+				raise Exception('Network not found')
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Network')
+			results = error
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Network: %s %s seconds" % (network_name, runningtime)
+			output.append(['network', 'List_Network', network_name, network_name, runningtime, results,])
 	def List_Role(self, keystone, role, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		if role is None:
@@ -339,6 +477,26 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Role: %s %s seconds" % (role.name, runningtime)
 			output.append(['keystone', 'List_Role', role.name, role.name, runningtime, results,])
+	def List_Volume(self, cinder, volume, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		if volume is None:
+			results = 'NotRun'
+			errors.append('List_Volume')
+			if verbose:
+				print "List_Volume: %s 0 seconds" % 'N/A'
+				output.append(['cinder', 'List_Volume', 'N/A', 'N/A', '0', results,])
+			return
+		try:
+			cinder.volumes.get(volume.id)
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Volume')
+			results = error
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Volume: %s %s seconds" % (volume.name, runningtime)
+			output.append(['cinder', 'List_Volume', volume.name, volume.name, runningtime, results,])
 	def _printreport(self):
 		return self.output
 	def listservices(self):
@@ -377,20 +535,13 @@ class Openstuck():
 					role.delete()
 				except:
 					continue
-	def glanceclean(self, image):
-#		try:
-#			print "Cleaning Glance..."
-#			for img in glance.images.list():
-#				if img['name'] == image:
-#					glance.images.delete(img['id'])
-#		except:
-#			pass
-
+	def glanceclean(self, images):
 		if self.verbose:
 			print "Cleaning Glance..."
 		keystone = self.keystone
-		endpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-		glance = glance.Client(endpoint, token=keystone.auth_token)
+                endpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
+                glance = glanceclient.Client(endpoint, token=keystone.auth_token)
+
 		for image in images:
 			if image is None:
 				continue
@@ -403,18 +554,88 @@ class Openstuck():
 		if self.verbose:
 			print "Cleaning Cinder..."
 		keystone = self.keystone
-		endpoint = keystone.service_catalog.url_for(service_type='volume',endpoint_type=self.endpoint)
-		cinder = cinderclient.Client(endpoint, token=keystone.auth_token)
+		cinder = cinderclient.Client(**self.novacredentials)
 		for volume in volumes:
 			if volume is None:
 				continue
 			else:
 				try:
-					cinder.volumes.delete(volume.id)
+					volume.delete()
+				except:
+					continue
+	def neutronclean(self, networks):
+		if self.verbose:
+			print "Cleaning Neutron..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
+		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token)
+		for network in networks:
+			if network is None:
+				continue
+			else:
+				try:
+					neutron.networks.delete(network['id'])
+				except:
+					continue
+	def novaclean(self, instances):
+		if self.verbose:
+			print "Cleaning Nova..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='compute',endpoint_type=self.endpoint)
+		nova     = novaclient.Client(endpoint, token=keystone.auth_token)
+		for instance in instances:
+			if instance is None:
+				continue
+			else:
+				try:
+					nova.instances.delete(instance.id)
+				except:
+					continue
+	def heatclean(self, stacks):
+		if self.verbose:
+			print "Cleaning Heat..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='orchestration',endpoint_type=self.endpoint)
+		heat     = heatclient.Client(endpoint, token=keystone.auth_token)
+		for stack in stacks:
+			if stack is None:
+				continue
+			else:
+				try:
+					heat.stacks.delete(stack.id)
+				except:
+					continue
+	def ceilometerclean(self, alarms):
+		if self.verbose:
+			print "Cleaning Ceilometer..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='compute',endpoint_type=self.endpoint)
+		nova     = ceilometerclient.Client(endpoint, token=keystone.auth_token)
+		for alarm in alarms:
+			if alarm is None:
+				continue
+			else:
+				try:
+					ceilometer.alarms.delete(alarm.id)
+				except:
+					continue
+	def swiftclean(self, containers):
+		if self.verbose:
+			print "Cleaning Swift..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='object',endpoint_type=self.endpoint)
+		swift    = swiftclient.Client(endpoint, token=keystone.auth_token)
+		for container in containers:
+			if container is None:
+				continue
+			else:
+				try:
+					swift.containers.delete(container.id)
 				except:
 					continue
 	def keystonetest(self):
 		category = 'keystone'
+		tests    = self.keystonetests
 		mgr = multiprocessing.Manager()
 		tenants = mgr.list()
 		users   = mgr.list()
@@ -425,75 +646,80 @@ class Openstuck():
 		keystone = self.keystone
 
                 test   = 'Create_Tenant'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		for step in range(repeat):
-			jobs = [ multiprocessing.Process(target=self.Create_Tenant, args=(keystone, "%s-%d-%d" % (self.tenant, step,number), self.description, tenants, errors, output, self.verbose,)) for number in range(concurrency) ]
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Tenant, args=(keystone, "%s-%d-%d" % (self.tenant, step,number), self.description, tenants, errors, output, self.verbose,)) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime    = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			tenants = [ keystone.tenants.get(tenant_id) if tenant_id is not None else None for tenant_id in tenants]
+
+		if test in tests:
+	        	test   = 'Create_User'
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_User, args=(keystone, "%s-%d-%d" % (self.user, step, number), self.password, self.email, self._first(tenants), users, errors, output, self.verbose,)) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			users = [ keystone.users.get(user_id) if user_id is not None else None for user_id in users ]
+
+		if test in tests:
+	        	test   = 'Create_Role'
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Role, args=(keystone, "%s-%d-%d" % (self.role, step, number), roles, errors, output, self.verbose, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			roles = [ keystone.roles.get(role_id) if role_id is not None else None for role_id in roles ]
+
+		if test in tests:
+	        	test   = 'Add_Role'
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Add_Role, args=(keystone, self._first(users), role, self._first(tenants), errors, output, self.verbose, )) for role in roles ]
 			self._process(jobs)
-		endtime    = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
-		tenants = [ keystone.tenants.get(tenant_id) if tenant_id is not None else None for tenant_id in tenants]
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
 
-	        test   = 'Create_User'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		for step in range(repeat):
-			jobs = [ multiprocessing.Process(target=self.Create_User, args=(keystone, "%s-%d-%d" % (self.user, step, number), self.password, self.email, self._first(tenants), users, errors, output, self.verbose,)) for number in range(concurrency) ]
+		if test in tests:
+	        	test   = 'List_Role'
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Role, args=(keystone, role, errors, output, self.verbose, )) for role in roles ]
 			self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
-		users = [ keystone.users.get(user_id) if user_id is not None else None for user_id in users ]
-
-	        test   = 'Create_Role'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		for step in range(repeat):
-			jobs = [ multiprocessing.Process(target=self.Create_Role, args=(keystone, "%s-%d-%d" % (self.role, step, number), roles, errors, output, self.verbose, )) for number in range(concurrency) ]
-			self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
-		roles = [ keystone.roles.get(role_id) if role_id is not None else None for role_id in roles ]
-
-	        test   = 'Add_Role'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		jobs = [ multiprocessing.Process(target=self.Add_Role, args=(keystone, self._first(users), role, self._first(tenants), errors, output, self.verbose, )) for role in roles ]
-		self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
-
-	        test   = 'List_Role'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		jobs = [ multiprocessing.Process(target=self.List_Role, args=(keystone, role, errors, output, self.verbose, )) for role in roles ]
-		self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
 
 	        test   = 'Authenticate_User'
 		output = mgr.list()
@@ -508,49 +734,53 @@ class Openstuck():
 		self._report(category, test, concurrency, repeat, runningtime, errors)
 		self._addrows(verbose, output)
 
-		test   = 'Delete_User'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		jobs = [ multiprocessing.Process(target=self.Delete_User, args=(keystone, user, errors, output, self.verbose, )) for user in users ]
-		self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
+		if test in tests:
+			test   = 'Delete_User'
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_User, args=(keystone, user, errors, output, self.verbose, )) for user in users ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
 
-		test   = 'Delete_Role'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		jobs = [ multiprocessing.Process(target=self.Delete_Role, args=(keystone, role, errors, output, self.verbose, )) for role in roles ]
-		self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
+		if test in tests:
+			test   = 'Delete_Role'
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Role, args=(keystone, role, errors, output, self.verbose, )) for role in roles ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
 
-		test   = 'Delete_Tenant'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		jobs = [ multiprocessing.Process(target=self.Delete_Tenant, args=(keystone, tenant, errors, output, self.verbose, )) for tenant in tenants ]
-		self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
-
+		if test in tests:
+			test   = 'Delete_Tenant'
+			output = mgr.list()
+	                concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Tenant, args=(keystone, tenant, errors, output, self.verbose, )) for tenant in tenants ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+	
 		self.keystoneclean(tenants, users, roles)
 
 	def glancetest(self):
 		category = 'glance'
+		tests = self.glancetests
 		mgr = multiprocessing.Manager()
 		errors  = mgr.list()
 		images = mgr.list()
@@ -560,102 +790,404 @@ class Openstuck():
 		endpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
 		glance = glanceclient.Client(endpoint, token=keystone.auth_token)
 
-                test = 'Create_Image'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		for step in range(repeat):
-			jobs = [ multiprocessing.Process(target=self.Create_Image, args=(glance, "%s-%d-%d" % (self.image, step, number), self.imagepath, images, errors, output, self.verbose, )) for number in range(concurrency) ]
-			self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
-		images = [ glance.images.get(image_id) if image_id is not None else None for image_id in images ]
 
-                test = 'List_Image'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		jobs = [ multiprocessing.Process(target=self.List_Image, args=(glance, image, errors, output, self.verbose, )) for image in images ]
-		self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
+		test = 'Create_Image'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Image, args=(glance, "%s-%d-%d" % (self.image, step, number), self.imagepath, images, errors, output, self.verbose, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			images = [ glance.images.get(image_id) if image_id is not None else None for image_id in images ]
+
+		test = 'List_Image'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Image, args=(glance, image, errors, output, self.verbose, )) for image in images ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
 
                 test = 'Delete_Image'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		jobs = [ multiprocessing.Process(target=self.Delete_Image, args=(glance, image, errors, output, self.verbose, )) for image in images ]
-		self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
-
+		if test in tests:
+			output = mgr.list()
+	                concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Image, args=(glance, image, errors, output, self.verbose, )) for image in images ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+	
 		self.glanceclean(images)
+
 	def cindertest(self):
 		category = 'cinder'
+		tests = self.cindertests 
 		mgr = multiprocessing.Manager()
 		errors  = mgr.list()
 		volumes = mgr.list()
 		if self.verbose:
 			print "Testing Cinder..."
 		keystone = self.keystone
-		endpoint = keystone.service_catalog.url_for(service_type='volume',endpoint_type=self.endpoint)
-		cinder = cinderclient.Client(endpoint, token=keystone.auth_token)
-
-                test = 'Create_volume'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		for step in range(repeat):
-			jobs = [ multiprocessing.Process(target=self.Create_Volume, args=(cinder, "%s-%d-%d" % (self.volume, step, number), self.volumetype, volumes, errors, output, self.verbose, )) for number in range(concurrency) ]
-			self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
-		volumes = [ cinder.volumes.get(volume_id) if volume_id is not None else None for volume_id in volumes ]
-
-                test = 'List_Volumes'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		jobs = [ multiprocessing.Process(target=self.List_Volume, args=(cinder, volume, errors, output, self.verbose, )) for volume in volumes ]
-		self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
-
-                test = 'Delete_Volume'
-		output = mgr.list()
-                concurrency, repeat = metrics(test)
-		starttime = time.time()
-		jobs = [ multiprocessing.Process(target=self.Delete_Volume, args=(glance, volume, errors, output, self.verbose, )) for volume in volume ]
-		self._process(jobs)
-		endtime = time.time()
-		runningtime = "%0.3f" % (endtime -starttime)
-		if verbose:
-			print "%s  %s seconds" % (test, runningtime)
-		self._report(category, test, concurrency, repeat, runningtime, errors)
-		self._addrows(verbose, output)
-
-		self.cinderclean(volumes)
+		cinder = cinderclient.Client(**self.novacredentials)
 	
+		test = 'Create_Volume'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Volume, args=(cinder, "%s-%d-%d" % (self.volume, step, number), volumes, errors, output, self.verbose, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			volumes = [ cinder.volumes.get(volume_id) if volume_id is not None else None for volume_id in volumes ]
+
+		test = 'Create_TypedVolume'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_TypedVolume, args=(cinder, "%s-%s-%d-%d" % (self.volume, self.volumetype, step, number), self.volumetype, volumes, errors, output, self.verbose, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test = 'List_Volume'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Volume, args=(cinder, volume, errors, output, self.verbose, )) for volume in volumes ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test = 'Delete_Volume'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Volume, args=(cinder, volume, errors, output, self.verbose, )) for volume in volumes ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+		self.cinderclean(volumes)
+
+	def neutrontest(self):
+		category = 'neutron'
+		tests    = self.neutrontests 
+		mgr      = multiprocessing.Manager()
+		errors   = mgr.list()
+		networks = mgr.list()
+		if self.verbose:
+			print "Testing Neutron..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
+		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token)
+
+		test = 'Create_Network'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Network, args=(neutron, "%s-%d-%d" % (self.network, step, number), networks, errors, output, self.verbose, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			networks = [ network if network is not None else None for network in neutron.list_networks()['networks'] if network['id'] in networks ]
+
+		test = 'List_Network'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Network, args=(neutron, network, errors, output, self.verbose, )) for network in networks ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test = 'Delete_Network'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Network, args=(neutron, network, errors, output, self.verbose, )) for network in networks ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+		self.neutronclean(networks)
+	def novatest(self):
+		category  = 'nova'
+		tests     = self.novatests 
+		mgr       = multiprocessing.Manager()
+		errors    = mgr.list()
+		instances = mgr.list()
+		if self.verbose:
+			print "Testing Nova..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='compute',endpoint_type=self.endpoint)
+		nova     = novaclient.Client(endpoint, token=keystone.auth_token)
+		test = 'Create_Instance'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Instance, args=(nova, "%s-%d-%d" % (self.instance, step, number), instances, errors, output, self.verbose, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			instances = [ nova.instances.get(instance_id) if instance_id is not None else None for instance_id in instances ]
+
+		test = 'List_Instance'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Instance, args=(nova, instance, errors, output, self.verbose, )) for instance in instances ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test = 'Delete_Instance'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Instance, args=(nova, instance, errors, output, self.verbose, )) for instance in instances ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+		self.novaclean(instances)
+	def heattest(self):
+		category = 'heat'
+		tests = self.heattests 
+		mgr = multiprocessing.Manager()
+		errors  = mgr.list()
+		stacks = mgr.list()
+		if self.verbose:
+			print "Testing Heat..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='orchestration',endpoint_type=self.endpoint)
+		heat = heatclient.Client(endpoint, token=keystone.auth_token)
+	
+		test = 'Create_Stack'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Stack, args=(heat, "%s-%d-%d" % (self.stack, step, number), stacks, errors, output, self.verbose, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			stacks = [ heat.stacks.get(stack_id) if stack_id is not None else None for stack_id in stacks ]
+
+		test = 'List_Stack'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Stack, args=(heat, stack, errors, output, self.verbose, )) for stack in stacks ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test = 'Delete_Stack'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Volume, args=(heat, stack, errors, output, self.verbose, )) for stack in stacks ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+		self.heatclean(stacks)
+	def ceilometertest(self):
+		category = 'ceilometer'
+		tests = self.ceilometertests 
+		mgr = multiprocessing.Manager()
+		errors  = mgr.list()
+		alarms = mgr.list()
+		if self.verbose:
+			print "Testing Ceilometer..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='metering',endpoint_type=self.endpoint)
+		ceilometer = ceilometerclient.Client(endpoint, token=keystone.auth_token)
+	
+		test = 'Create_Alarm'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Alarm, args=(ceilometer, "%s-%d-%d" % (self.alarm, step, number), alarms, errors, output, self.verbose, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			alarms = [ ceilometer.alarms.get(alarm_id) if alarm_id is not None else None for alarm_id in alarms ]
+
+		test = 'List_Alarm'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Alarm, args=(ceilometer, alarm, errors, output, self.verbose, )) for alarm in alarms ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test = 'Delete_Alarm'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Alarm, args=(ceilometer, alarm, errors, output, self.verbose, )) for alarm in alarms ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+		self.ceilometerclean(alarms)
+	def swifttest(self):
+		category = 'swift'
+		tests = self.swifttests 
+		mgr = multiprocessing.Manager()
+		errors  = mgr.list()
+		containers = mgr.list()
+		if self.verbose:
+			print "Testing Swift..."
+		keystone = self.keystone
+		endpoint = keystone.service_catalog.url_for(service_type='container',endpoint_type=self.endpoint)
+		swift = swiftclient.Client(endpoint, token=keystone.auth_token)
+	
+		test = 'Create_Container'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Container, args=(swift, "%s-%d-%d" % (self.container, step, number), containers, errors, output, self.verbose, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			containers = [ ceilometer.containers.get(container_id) if container_id is not None else None for container_id in containers ]
+
+		test = 'List_Container'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Container, args=(swift, container, errors, output, self.verbose, )) for container in containers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test = 'Delete_Container'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Alarm, args=(swift, container, errors, output, self.verbose, )) for container in containers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+		self.swiftclean(containers)
+
 if __name__ == "__main__":
 	#parse options
 	usage   = "test openstack installation quickly"
@@ -671,9 +1203,10 @@ if __name__ == "__main__":
 	testinggroup.add_option('-G', '--glance', dest='testglance', action='store_true',default=False, help='Test glance')
 	testinggroup.add_option('-H', '--heat', dest='testheat', action='store_true',default=False, help='Test heat')
 	testinggroup.add_option('-K', '--keystone', dest='testkeystone', action='store_true',default=False, help='Test keystone')
-	testinggroup.add_option('-N', '--nova', dest='testnova', action='store_true',default=False, help='Test neutron')
+	testinggroup.add_option('-N', '--nova', dest='testnova', action='store_true',default=False, help='Test nova')
 	testinggroup.add_option('-Q', '--neutron', dest='testneutron', action='store_true',default=False, help='Test neutron')
 	testinggroup.add_option('-S', '--swift', dest='testswift', action='store_true',default=False, help='Test swift')
+	testinggroup.add_option('-X', '--ceilometer', dest='testceilometer', action='store_true',default=False, help='Test ceilometer')
 	parser.add_option_group(testinggroup)
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. defaults to acme')
 	parser.add_option('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Verbose mode')
@@ -681,6 +1214,7 @@ if __name__ == "__main__":
 	listservices    = options.listservices
 	testkeystone    = options.testkeystone
 	testglance      = options.testglance
+	testceilometer  = options.testceilometer
 	testcinder      = options.testcinder
 	testneutron     = options.testneutron
 	testnova        = options.testnova
@@ -690,25 +1224,26 @@ if __name__ == "__main__":
 	testall         = options.testall
 	project         = options.project
 	verbose         = options.verbose
-	user               = "%suser" % project
-	password           = "%spassword" % project
-	role               = "%srole" % project
-	tenant             = "%stenant" % project
-	email              = "%suser@xxx.com" % project
-	description        = "Members of the %s corp" % project
-	image              = "%simage" % project
 	try:
 		keystonecredentials = _keystonecreds()
 		novacredentials     = _novacreds()
-		endpoint            = os.environ['OS_ENDPOINT_TYPE'] if os.environ.has_key('OS_ENDPOINT_TYPE') else 'publicURL'
-		keystonetests       = os.environ['OS_KEYSTONETESTS'] if os.environ.has_key('OS_KEYSTONETESTS') else keystonedefaulttests
-		glancetests         = os.environ['OS_GLANCETESTS'] if os.environ.has_key('OS_GLANCETESTS') else glancedefaulttests
-		imagepath           = os.environ['OS_GLANCE_IMAGE_PATH'] if os.environ.has_key('OS_GLANCE_IMAGE_PATH') else None
-	except:
+		endpoint            = os.environ['OS_ENDPOINT_TYPE']                 if os.environ.has_key('OS_ENDPOINT_TYPE')     else 'publicURL'
+		keystonetests       = os.environ['OS_KEYSTONE_TESTS'].split(',')     if os.environ.has_key('OS_KEYSTONE_TESTS')     else keystonedefaulttests
+		glancetests         = os.environ['OS_GLANCE_TESTS'].split(',')       if os.environ.has_key('OS_GLANCE_TESTS')       else glancedefaulttests
+		cindertests         = os.environ['OS_CINDER_TESTS'].split(',')       if os.environ.has_key('OS_CINDER_TESTS')       else cinderdefaulttests
+		neutrontests        = os.environ['OS_NEUTRON_TESTS'].split(',')      if os.environ.has_key('OS_NEUTRON_TESTS')      else neutrondefaulttests
+		novatests           = os.environ['OS_NOVA_TESTS'].split(',')         if os.environ.has_key('OS_NOVA_TESTS')         else novadefaulttests
+		heattests           = os.environ['OS_HEAT_TESTS'].split(',')         if os.environ.has_key('OS_HEAT_TESTS')         else heatdefaulttests
+		swifttests          = os.environ['OS_SWIFT_TESTS'].split(',')        if os.environ.has_key('OS_SWIFT_TESTS')        else swiftdefaulttests
+		ceilometertests     = os.environ['OS_CEILOMETER_TESTS'].split(',')   if os.environ.has_key('OS_CEILOMETER_TESTS')   else ceilometerdefaulttests
+		imagepath           = os.environ['OS_GLANCE_IMAGE_PATH']             if os.environ.has_key('OS_GLANCE_IMAGE_PATH') else None
+		volumetype          = os.environ['OS_CINDER_VOLUME_TYPE']            if os.environ.has_key('OS_CINDER_VOLUME_TYPE') else None
+	except Exception as e:
 		print "Missing environment variables. source your openrc file first"
+		print e
 	    	os._exit(1)
 
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, tenant=tenant, user=user, password=password, role=role, email=email, description=description, image=image, imagepath=imagepath, verbose=verbose)
+	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose)
 	
 	if listservices:
 		print o.listservices()
@@ -727,6 +1262,8 @@ if __name__ == "__main__":
 		o.heattest()
 	if testswift or testall:
 		o.swifttest()
+	if testceilometer or testceilometer:
+		o.heattest()
 	if testha or testall:
 		o.alltest()
 	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testswift or testha or testall:
