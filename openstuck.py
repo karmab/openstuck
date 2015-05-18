@@ -14,6 +14,10 @@ import keystoneclient.v2_0.client as keystoneclient
 import glanceclient.v2.client as glanceclient
 import cinderclient.v2.client as cinderclient
 from neutronclient.neutron import client as neutronclient
+from novaclient import client as novaclient
+from heatclient import client as heatclient
+import json
+import yaml
 
 
 __author__     = 'Karim Boumedhel'
@@ -30,7 +34,7 @@ glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests      = ['Create_Volume', 'List_Volume', 'Delete_Volume']
 cinderbackupdefaulttests = ['Create_Backup', 'List_Backup', 'Delete_Backup']
 neutrondefaulttests      = ['Create_Network', 'List_Network', 'Delete_Network']
-novadefaulttests         = ['Create_Instance', 'List_Instance', 'Delete_Instance']
+novadefaulttests         = ['Create_Server', 'List_Server', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -94,6 +98,10 @@ class Openstuck():
         	self.volume          = "%svolume" % project
         	self.volumetype      = volumetype
         	self.network         = "%snetwork" % project
+        	self.server          = "%sserver" % project
+        	self.stack           = "%sstack" % project
+        	self.alarm           = "%salarm" % project
+        	self.container       = "%scontainer" % project
 		self.debug           = debug
 		self.verbose         = verbose
 	def _first(self, elements):
@@ -223,6 +231,59 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Create_Role: %s %s seconds" % (name, runningtime)
 			output.append(['keystone', 'Create_Role', name, name, runningtime, results,])
+	def Create_Server(self, nova, server, servers=None, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		try:
+			image   = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
+			flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
+			network = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+			image = nova.images.find(name=image)
+			flavor = nova.flavors.find(name=flavor)
+			networkid = nova.networks.find(label=network).id
+			nics = [{'net-id': networkid}]
+			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics)
+			results = 'OK'
+			servers.append(newserver.id)
+		except Exception as error:
+			errors.append('Create_Server')
+			results = error
+			servers.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_Server: %s %s seconds" % (server, runningtime )
+			output.append(['nova', 'Create_Server', server, server, runningtime, results,])
+	def Create_Stack(self, heat, stack, stacks=None, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		try:
+			template  = os.environ['OS_HEAT_TEMPLATE']   if os.environ.has_key('OS_HEAT_TEMPLATE')   else None
+			if template is None:
+				image         = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
+				flavor        = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
+				network       = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+				stackinstance = "%sinstance" % stack
+				template={'heat_template_version': '2013-05-23', 'description': 'Testing Template', 'resources': 
+				 	{stackinstance: {'type': 'OS::Nova::Server', 'properties': {'image': image,
+				 	'flavor': flavor, 'networks': [{'network': network }]}}}}
+				template = json.dumps(template)
+			else:
+				template = yaml.load(open(template))
+				for oldkey in template['resources'].keys():
+					newkey = "%s%s" % (stack, oldkey)
+					template['resources'][newkey]= template['resources'].pop(oldkey)
+					del template['resources'][oldkey]
+			newstack = heat.stacks.create(stack_name=stack, template=template)
+			results = 'OK'
+			stacks.append(newstack['stack']['id'])
+		except Exception as error:
+			errors.append('Create_Stack')
+			results = error
+			stacks.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_Stack: %s %s seconds" % (stack, runningtime )
+			output.append(['heat', 'Create_Stack', stack, stack, runningtime, results,])
 	def Create_Tenant(self, keystone, name, description, tenants=None, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		try:
@@ -348,6 +409,49 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Role: %s %s seconds" % (rolename, runningtime)
 			output.append(['keystone', 'Delete_Role', rolename, rolename, runningtime, results,])
+	def Delete_Server(self, nova, server, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		if server is None:
+			errors.append('Delete_Server')
+			results = 'NotRun'
+			if verbose:
+				print "Delete_Server: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Delete_Server', 'N/A', 'N/A', '0', results,])
+			return
+		servername = server.name
+		try:
+			server.delete()
+			results = 'OK'
+		except Exception as error:
+			errors.append('Delete_Server')
+			results = error
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Server: %s %s seconds" % (servername, runningtime)
+			output.append(['nova', 'Delete_Server', servername, servername, runningtime, results,])
+	def Delete_Stack(self, heat, stack, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		if stack is None:
+			errors.append('Delete_Stack')
+			results = 'NotRun'
+			if verbose:
+				print "Delete_Stack: %s 0 seconds" % 'N/A'
+				output.append(['heat', 'Delete_Stack', 'N/A', 'N/A', '0', results,])
+			return
+		stackname = stack.stack_name
+		stackid   = stack.id
+		try:
+			heat.stacks.delete(stackid)
+			results = 'OK'
+		except Exception as error:
+			errors.append('Delete_Stack')
+			results = error
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Stack: %s %s seconds" % (stackname, runningtime)
+			output.append(['heat', 'Delete_Stack', stackname, stackname, runningtime, results,])
 	def Delete_Tenant(self, keystone, tenant, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		if tenant is None:
@@ -456,7 +560,7 @@ class Openstuck():
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Network: %s %s seconds" % (network_name, runningtime)
-			output.append(['network', 'List_Network', network_name, network_name, runningtime, results,])
+			output.append(['neutron', 'List_Network', network_name, network_name, runningtime, results,])
 	def List_Role(self, keystone, role, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		if role is None:
@@ -477,6 +581,50 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Role: %s %s seconds" % (role.name, runningtime)
 			output.append(['keystone', 'List_Role', role.name, role.name, runningtime, results,])
+	def List_Server(self, nova, server, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		if server is None:
+			results = 'NotRun'
+			errors.append('List_Server')
+			if verbose:
+				print "List_Server: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'List_Server', 'N/A', 'N/A', '0', results,])
+			return
+		server_id   = server.id
+		server_name = server.name
+		try:
+			nova.servers.get(server_id)
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Server')
+			results = error
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Server: %s %s seconds" % (server_name, runningtime)
+			output.append(['nova', 'List_Server', server_name, server_name, runningtime, results,])
+	def List_Stack(self, heat, stack, errors=None, output=None, verbose=False):
+		starttime = time.time()
+		if stack is None:
+			results = 'NotRun'
+			errors.append('List_Stack')
+			if verbose:
+				print "List_Stack: %s 0 seconds" % 'N/A'
+				output.append(['heat', 'List_Stack', 'N/A', 'N/A', '0', results,])
+			return	
+		stackid   = stack.id
+		stackname = stack.stack_name
+		try:
+			heat.stacks.get(stackid)
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Stack')
+			results = error
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Stack: %s %s seconds" % (stackname, runningtime)
+			output.append(['heat', 'List_Stack', stackname, stackname, runningtime, results,])
 	def List_Volume(self, cinder, volume, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		if volume is None:
@@ -577,18 +725,16 @@ class Openstuck():
 					neutron.networks.delete(network['id'])
 				except:
 					continue
-	def novaclean(self, instances):
+	def novaclean(self, servers):
 		if self.verbose:
 			print "Cleaning Nova..."
-		keystone = self.keystone
-		endpoint = keystone.service_catalog.url_for(service_type='compute',endpoint_type=self.endpoint)
-		nova     = novaclient.Client(endpoint, token=keystone.auth_token)
-		for instance in instances:
-			if instance is None:
+		nova     = novaclient.Client('2', **self.novacredentials)
+		for server in servers:
+			if server is None:
 				continue
 			else:
 				try:
-					nova.instances.delete(instance.id)
+					nova.servers.delete(server.id)
 				except:
 					continue
 	def heatclean(self, stacks):
@@ -596,7 +742,7 @@ class Openstuck():
 			print "Cleaning Heat..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='orchestration',endpoint_type=self.endpoint)
-		heat     = heatclient.Client(endpoint, token=keystone.auth_token)
+		heat = heatclient.Client('1', endpoint=endpoint, token=keystone.auth_token)
 		for stack in stacks:
 			if stack is None:
 				continue
@@ -969,19 +1115,18 @@ class Openstuck():
 		tests     = self.novatests 
 		mgr       = multiprocessing.Manager()
 		errors    = mgr.list()
-		instances = mgr.list()
+		servers = mgr.list()
 		if self.verbose:
 			print "Testing Nova..."
 		keystone = self.keystone
-		endpoint = keystone.service_catalog.url_for(service_type='compute',endpoint_type=self.endpoint)
-		nova     = novaclient.Client(endpoint, token=keystone.auth_token)
-		test = 'Create_Instance'
+		nova = novaclient.Client('2', **self.novacredentials)
+		test = 'Create_Server'
 		if test in tests:
 			output = mgr.list()
                 	concurrency, repeat = metrics(test)
 			starttime = time.time()
 			for step in range(repeat):
-				jobs = [ multiprocessing.Process(target=self.Create_Instance, args=(nova, "%s-%d-%d" % (self.instance, step, number), instances, errors, output, self.verbose, )) for number in range(concurrency) ]
+				jobs = [ multiprocessing.Process(target=self.Create_Server, args=(nova, "%s-%d-%d" % (self.server, step, number), servers, errors, output, self.verbose, )) for number in range(concurrency) ]
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -989,14 +1134,14 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
-			instances = [ nova.instances.get(instance_id) if instance_id is not None else None for instance_id in instances ]
+			servers = [ nova.servers.get(server_id) if server_id is not None else None for server_id in servers ]
 
-		test = 'List_Instance'
+		test = 'List_Server'
 		if test in tests:
 			output = mgr.list()
                 	concurrency, repeat = metrics(test)
 			starttime = time.time()
-			jobs = [ multiprocessing.Process(target=self.List_Instance, args=(nova, instance, errors, output, self.verbose, )) for instance in instances ]
+			jobs = [ multiprocessing.Process(target=self.List_Server, args=(nova, server, errors, output, self.verbose, )) for server in servers ]
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1005,12 +1150,12 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 
-		test = 'Delete_Instance'
+		test = 'Delete_Server'
 		if test in tests:
 			output = mgr.list()
                 	concurrency, repeat = metrics(test)
 			starttime = time.time()
-			jobs = [ multiprocessing.Process(target=self.Delete_Instance, args=(nova, instance, errors, output, self.verbose, )) for instance in instances ]
+			jobs = [ multiprocessing.Process(target=self.Delete_Server, args=(nova, server, errors, output, self.verbose, )) for server in servers ]
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1018,7 +1163,7 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
-		self.novaclean(instances)
+		self.novaclean(servers)
 	def heattest(self):
 		category = 'heat'
 		tests = self.heattests 
@@ -1029,7 +1174,7 @@ class Openstuck():
 			print "Testing Heat..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='orchestration',endpoint_type=self.endpoint)
-		heat = heatclient.Client(endpoint, token=keystone.auth_token)
+		heat = heatclient.Client('1', endpoint=endpoint, token=keystone.auth_token)
 	
 		test = 'Create_Stack'
 		if test in tests:
@@ -1066,7 +1211,7 @@ class Openstuck():
 			output = mgr.list()
                 	concurrency, repeat = metrics(test)
 			starttime = time.time()
-			jobs = [ multiprocessing.Process(target=self.Delete_Volume, args=(heat, stack, errors, output, self.verbose, )) for stack in stacks ]
+			jobs = [ multiprocessing.Process(target=self.Delete_Stack, args=(heat, stack, errors, output, self.verbose, )) for stack in stacks ]
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1260,10 +1405,10 @@ if __name__ == "__main__":
 		o.novatest()
 	if testheat or testall:
 		o.heattest()
-	if testswift or testall:
-		o.swifttest()
 	if testceilometer or testceilometer:
 		o.heattest()
+	if testswift or testall:
+		o.swifttest()
 	if testha or testall:
 		o.alltest()
 	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testswift or testha or testall:
