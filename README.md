@@ -14,6 +14,10 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 -    `openstuck.py`  tests/stresses your openstack
 -     keystonedefaulttests   = ['CreateTenant', 'Create_User', 'Create_Role', 'Add_Role', 'Authenticate_User', 'Delete_User', 'Delete_Role', 'Delete_Tenant']
 
+
+##Disabled Checks
+- in cinder GrowVolume
+
 ##Typical uses
      
 -  TEST YOUR OPENSTACK DEPLOYMENT
@@ -52,6 +56,12 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - confine all tests to a given tenant
 - specific timeout env variables per component ?
 - handle specifically known exceptions instead of beeing generic
+
+##Known bugs
+- Create_Backup race condition giving a "Invalid volume: Volume to be backed up must be available" message
+
+
+
 
 ##Problems?
 
