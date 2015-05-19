@@ -16,7 +16,13 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 
 
 ##Disabled Checks
-- in cinder GrowVolume
+- GrowVolume
+- Create_Backup
+- Create_Snapshot
+- List_Backup
+- List_Snapshot
+- Delete_Backup
+- Delete_Snapshot
 
 ##Typical uses
      

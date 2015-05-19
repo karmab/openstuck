@@ -34,9 +34,8 @@ __status__     = 'Testing'
 
 keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_Role', 'ListRole', 'Authenticate_User', 'Delete_User', 'Delete_Role', 'Delete_Tenant']
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
-#cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume']
-cinderdefaulttests       = ['Create_Volume', 'Create_Snapshot', 'List_Volume', 'List_Snapshot', 'Delete_Volume', 'Delete_Snapshot']
-cinderbackupdefaulttests = ['Create_Backup', 'List_Backup', 'Delete_Backup']
+cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume']
+#cinderdefaulttests       = ['Create_Volume', 'Create_Snapshot', 'List_Volume', 'List_Snapshot', 'Delete_Volume', 'Delete_Snapshot']
 neutrondefaulttests      = ['Create_Network', 'List_Network', 'Delete_Network']
 novadefaulttests         = ['Create_Server', 'List_Server', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
@@ -69,7 +68,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, cinderbackuptests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=False, timeout=20):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=False, timeout=20):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -85,7 +84,6 @@ class Openstuck():
 		self.keystonetests     = keystonetests 
 		self.glancetests       = glancetests 
 		self.cindertests       = cindertests
-		self.cinderbackuptests = cinderbackuptests 
 		self.neutrontests      = neutrontests 
 		self.novatests         = novatests 
 		self.heattests         = heattests 
@@ -191,21 +189,22 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Alarm: %s %s seconds" % (alarm, runningtime )
 			output.append(['ceilometer', 'Create_Alarm', alarm, alarm, runningtime, results,])
-	def Create_Backup(self, cinder, backup, backups=None, errors=None, output=None, verbose=False):
+	def Create_Backup(self, cinder, backup, backups, volume, errors=None, output=None, verbose=False):
 		starttime = time.time()
+		if volume is None:
+			errors.append('Create_Backup')
+			results = 'NotRun'
+			if verbose:
+				print "Create_Backup: %s 0 seconds" % 'N/A'
+				output.append(['cinder', 'Create_Backup', 'N/A', 'N/A', '0', results,])
+			return
 		try:
-			volume   = os.environ['OS_CINDERBACKUP_VOLUME']   if os.environ.has_key('OS_CINDERBACKUP_VOLUME')   else 'volume'
-			volumeid = os.environ['OS_CINDERBACKUP_ID'] if os.environ.has_key('OS_CINDERBACKUP_ID') else None
-			if volumeid is not None:
-				volume = cinder.volumes.find(id=volumeid)
-			else:
-				volume = cinder.volumes.find(name=volume)
 			volume_id = volume.id				
 			timein = 0
 			while cinder.volumes.get(volume_id).status != 'available':
         			timein += 0.2
         			if timein > self.timeout:
-                			raise Exception("Timeout waiting for available status")
+                			raise Exception("Timeout waiting for status")
         			time.sleep(0.2)
 			newbackup = cinder.backups.create(volume_id=volume_id, name=backup)
 			results = 'OK'
@@ -213,7 +212,7 @@ class Openstuck():
 			while cinder.backups.get(newbackup.id).status != 'available':
         			timein += 0.2
         			if timein > self.timeout:
-                			raise Exception("Timeout waiting for available status")
+                			raise Exception("Timeout waiting for status")
         			time.sleep(0.2)
 			backups.append(newbackup.id)
 		except cinderexceptions.NoUniqueMatch:
@@ -228,7 +227,7 @@ class Openstuck():
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Backup: %s %s seconds" % (backup, runningtime )
-			output.append(['cinderbackup', 'Create_Backup', backup, backup, runningtime, results,])	
+			output.append(['cinder', 'Create_Backup', backup, backup, runningtime, results,])	
 	def Create_Container(self, swift, container, containers=None, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		try:
@@ -323,21 +322,22 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Server: %s %s seconds" % (server, runningtime )
 			output.append(['nova', 'Create_Server', server, server, runningtime, results,])
-	def Create_Snapshot(self, cinder, snapshot, snapshots=None, errors=None, output=None, verbose=False):
+	def Create_Snapshot(self, cinder, snapshot, snapshots, volume, errors=None, output=None, verbose=False):
 		starttime = time.time()
+		if volume is None:
+			errors.append('Create_Snapshot')
+			results = 'NotRun'
+			if verbose:
+				print ['cinder', 'Create_Snapshot', 'N/A', 'N/A', '0', results,]
+				output.append(['cinder', 'Create_Snapshot', 'N/A', 'N/A', '0', results,])
+			return
 		try:
-			volume   = os.environ['OS_CINDERSNAPSHOT_VOLUME']   if os.environ.has_key('OS_CINDERSNAPSHOT_VOLUME')   else 'volume'
-			volumeid = os.environ['OS_CINDERSNAPSHOT_ID'] if os.environ.has_key('OS_CINDERSNAPSHOT_ID') else None
-			if volumeid is not None:
-				volume = cinder.volumes.find(id=volumeid)
-			else:
-				volume = cinder.volumes.find(name=volume)
 			volume_id = volume.id				
 			timein = 0
 			while cinder.volumes.get(volume_id).status != 'available':
         			timein += 0.2
         			if timein > self.timeout:
-                			raise Exception("Timeout waiting for available status")
+                			raise Exception("Timeout waiting for status")
         			time.sleep(0.2)
 			newsnapshot = cinder.volume_snapshots.create(volume_id=volume_id, name=snapshot)
 			results = 'OK'
@@ -345,7 +345,7 @@ class Openstuck():
 			while cinder.volume_snapshots.get(newsnapshot.id).status != 'available':
         			timein += 0.2
         			if timein > self.timeout:
-                			raise Exception("Timeout waiting for available status")
+                			raise Exception("Timeout waiting for status")
         			time.sleep(0.2)
 			snapshots.append(newsnapshot.id)
 		except cinderexceptions.NoUniqueMatch:
@@ -463,7 +463,7 @@ class Openstuck():
                         while cinder.volumes.get(newvolume.id).status != 'available':
 				timein += 0.2
 				if timein > self.timeout:
-					raise Exception("Timeout waiting for available status")
+					raise Exception("Timeout waiting for status")
                                 time.sleep(0.2)
 			volumes.append(newvolume.id)
 		except Exception as error:
@@ -639,11 +639,25 @@ class Openstuck():
 				print "Delete_Snapshot: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'Delete_Snapshot', 'N/A', 'N/A', '0', results,])
 			return
+		snapshotid   = snapshot.id
 		snapshotname = snapshot.name
 		try:
+			#CHECK OVER DELETED STATUS
 			snapshot.delete()
-			#while cinder.volume_snapshots.get(snapshot.id).status != 'available':
-        		#	time.sleep(0.2)
+			timein = 0
+			deleted = False
+                        while not deleted:
+				try:
+					cinder.volume_snapshots.get(snapshot.id)
+					timein += 0.2
+					if timein > self.timeout:
+						results = 'Timeout waiting for status'
+						errors.append('Delete_Snapshot')
+						break
+                                	time.sleep(0.2)
+					continue
+				except cinderexceptions.NotFound:
+					deleted = True
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Snapshot')
@@ -756,7 +770,7 @@ class Openstuck():
                         while cinder.volumes.get(volume.id).status != 'available' and cinder.volumes.get(volume.id).size != 2:
 				timein += 0.2
 				if timein > self.timeout:
-					raise Exception("Timeout waiting for available status")
+					raise Exception("Timeout waiting for status")
                                 time.sleep(0.2)
 			results = 'OK'
 		except Exception as error:
@@ -1041,17 +1055,33 @@ class Openstuck():
 					glance.images.delete(image.id)
 				except:
 					continue
-	def cinderclean(self, volumes, snapshots):
+	def cinderclean(self, volumes, backups, snapshots):
 		if self.verbose:
 			print "Cleaning Cinder..."
 		keystone = self.keystone
 		cinder = cinderclient.Client(**self.novacredentials)
-		for volume in volumes+snapshots:
+		for volume in volumes:
 			if volume is None:
 				continue
 			else:
 				try:
 					volume.delete()
+				except:
+					continue
+		for backup in backups:
+			if backup is None:
+				continue
+			else:
+				try:
+					backup.delete()
+				except:
+					continue
+		for snapshot in snapshots:
+			if snapshot is None:
+				continue
+			else:
+				try:
+					snapshot.delete()
 				except:
 					continue
 
@@ -1355,6 +1385,7 @@ class Openstuck():
 		mgr       = multiprocessing.Manager()
 		errors    = mgr.list()
 		volumes   = mgr.list()
+		backups   = mgr.list()
 		snapshots = mgr.list()
 		if self.verbose:
 			print "Testing Cinder..."
@@ -1376,15 +1407,29 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 			volumes = [ cinder.volumes.get(volume_id) if volume_id is not None else None for volume_id in volumes ]
+
+		test = 'Create_Backup'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Create_Backup, args=(cinder, self.backup, backups, volume, errors, output, self.verbose, )) for volume in volumes ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			backups = [ cinder.backups.get(backup_id) if backup_id is not None else None for backup_id in snapshots ]
 			
 		test = 'Create_Snapshot'
 		if test in tests:
 			output = mgr.list()
                 	concurrency, repeat = metrics(test)
 			starttime = time.time()
-			for step in range(repeat):
-				jobs = [ multiprocessing.Process(target=self.Create_Snapshot, args=(cinder, "%s-%d-%d" % (self.snapshot, step, number), snapshots, errors, output, self.verbose, )) for number in range(concurrency) ]
-				self._process(jobs)
+			jobs = [ multiprocessing.Process(target=self.Create_Snapshot, args=(cinder, self.snapshot, snapshots, volume, errors, output, self.verbose, )) for volume in volumes ]
+			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
@@ -1437,76 +1482,6 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 
-		test = 'List_Snapshot'
-		if test in tests:
-			output = mgr.list()
-                	concurrency, repeat = metrics(test)
-			starttime = time.time()
-			jobs = [ multiprocessing.Process(target=self.List_Snapshot, args=(cinder, snapshot, errors, output, self.verbose, )) for snapshot in snapshots ]
-			self._process(jobs)
-			endtime = time.time()
-			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
-				print "%s  %s seconds" % (test, runningtime)
-			self._report(category, test, concurrency, repeat, runningtime, errors)
-			self._addrows(verbose, output)
-
-		test = 'Delete_Volume'
-		if test in tests:
-			output = mgr.list()
-                	concurrency, repeat = metrics(test)
-			starttime = time.time()
-			jobs = [ multiprocessing.Process(target=self.Delete_Volume, args=(cinder, volume, errors, output, self.verbose, )) for volume in volumes ]
-			self._process(jobs)
-			endtime = time.time()
-			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
-				print "%s  %s seconds" % (test, runningtime)
-			self._report(category, test, concurrency, repeat, runningtime, errors)
-			self._addrows(verbose, output)
-			
-		test = 'Delete_Snapshot'
-		if test in tests:
-			output = mgr.list()
-                	concurrency, repeat = metrics(test)
-			starttime = time.time()
-			jobs = [ multiprocessing.Process(target=self.Delete_Snapshot, args=(cinder, snapshot, errors, output, self.verbose, )) for snapshot in snapshots ]
-			self._process(jobs)
-			endtime = time.time()
-			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
-				print "%s  %s seconds" % (test, runningtime)
-			self._report(category, test, concurrency, repeat, runningtime, errors)
-			self._addrows(verbose, output)
-		self.cinderclean(volumes, snapshots)
-
-	def cinderbackuptest(self):
-		category = 'cinderbackup'
-		tests    = self.cinderbackuptests 
-		mgr      = multiprocessing.Manager()
-		errors   = mgr.list()
-		backups  = mgr.list()
-		if self.verbose:
-			print "Testing CinderBackup..."
-		keystone = self.keystone
-		cinder = cinderclient.Client(**self.novacredentials)
-	
-		test = 'Create_Backup'
-		if test in tests:
-			output = mgr.list()
-                	concurrency, repeat = metrics(test)
-			starttime = time.time()
-			for step in range(repeat):
-				jobs = [ multiprocessing.Process(target=self.Create_Backup, args=(cinder, "%s-%d-%d" % (self.backup, step, number), backups, errors, output, self.verbose, )) for number in range(concurrency) ]
-				self._process(jobs)
-			endtime = time.time()
-			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
-				print "%s  %s seconds" % (test, runningtime)
-			self._report(category, test, concurrency, repeat, runningtime, errors)
-			self._addrows(verbose, output)
-			backups = [ cinder.backups.get(backup_id) if backup_id is not None else None for backup_id in backups ]
-
 		test = 'List_Backup'
 		if test in tests:
 			output = mgr.list()
@@ -1521,12 +1496,12 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 
-		test = 'Delete_Backup'
+		test = 'List_Snapshot'
 		if test in tests:
 			output = mgr.list()
                 	concurrency, repeat = metrics(test)
 			starttime = time.time()
-			jobs = [ multiprocessing.Process(target=self.Delete_Backup, args=(cinder, backup, errors, output, self.verbose, )) for backup in backups ]
+			jobs = [ multiprocessing.Process(target=self.List_Snapshot, args=(cinder, snapshot, errors, output, self.verbose, )) for snapshot in snapshots ]
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1534,8 +1509,49 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
-		self.cinderbackupclean(backups)
-		
+
+		test = 'Delete_Snapshot'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(test)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Snapshot, args=(cinder, snapshot, errors, output, self.verbose, )) for snapshot in snapshots ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+                test = 'Delete_Backup'
+                if test in tests:
+                        output = mgr.list()
+                        concurrency, repeat = metrics(test)
+                        starttime = time.time()
+                        jobs = [ multiprocessing.Process(target=self.Delete_Backup, args=(cinder, backup, errors, output, self.verbose, )) for backup in backups ]
+                        self._process(jobs)
+                        endtime = time.time()
+                        runningtime = "%0.3f" % (endtime -starttime)
+                        if verbose:
+                                print "%s  %s seconds" % (test, runningtime)
+                        self._report(category, test, concurrency, repeat, runningtime, errors)
+                        self._addrows(verbose, output)
+
+                test = 'Delete_Volume'
+                if test in tests:
+                        output = mgr.list()
+                        concurrency, repeat = metrics(test)
+                        starttime = time.time()
+                        jobs = [ multiprocessing.Process(target=self.Delete_Volume, args=(cinder, volume, errors, output, self.verbose, )) for volume in volumes ]
+                        self._process(jobs)
+                        endtime = time.time()
+                        runningtime = "%0.3f" % (endtime -starttime)
+                        if verbose:
+                                print "%s  %s seconds" % (test, runningtime)
+                        self._report(category, test, concurrency, repeat, runningtime, errors)
+                        self._addrows(verbose, output)
+		self.cinderclean(volumes, backups, snapshots)
 	def neutrontest(self):
 		category = 'neutron'
 		tests    = self.neutrontests 
@@ -1842,7 +1858,6 @@ if __name__ == "__main__":
 	parser.add_option_group(listinggroup)
 	testinggroup = optparse.OptionGroup(parser, 'Testing options')
 	testinggroup.add_option('-A', '--availability', dest='testha', action='store_true',default=False, help='Test High Availability')
-	testinggroup.add_option('-B', '--cinderbackup', dest='testcinderbackup', action='store_true',default=False, help='Test cinder backup')
         testinggroup.add_option('-C', '--cinder', dest='testcinder', action='store_true',default=False, help='Test cinder')
 	testinggroup.add_option('-E', '--all', dest='testall', action='store_true',default=False, help='Test All')
 	testinggroup.add_option('-G', '--glance', dest='testglance', action='store_true',default=False, help='Test glance')
@@ -1862,7 +1877,6 @@ if __name__ == "__main__":
 	testglance       = options.testglance
 	testceilometer   = options.testceilometer
 	testcinder       = options.testcinder
-	testcinderbackup = options.testcinderbackup
 	testneutron      = options.testneutron
 	testnova         = options.testnova
 	testheat         = options.testheat
@@ -1879,7 +1893,6 @@ if __name__ == "__main__":
 		keystonetests       = os.environ['OS_KEYSTONE_TESTS'].split(',')     if os.environ.has_key('OS_KEYSTONE_TESTS')     else keystonedefaulttests
 		glancetests         = os.environ['OS_GLANCE_TESTS'].split(',')       if os.environ.has_key('OS_GLANCE_TESTS')       else glancedefaulttests
 		cindertests         = os.environ['OS_CINDER_TESTS'].split(',')       if os.environ.has_key('OS_CINDER_TESTS')       else cinderdefaulttests
-		cinderbackuptests   = os.environ['OS_CINDERBACKUP_TESTS'].split(',') if os.environ.has_key('OS_CINDERBACKUP_TESTS') else cinderbackupdefaulttests
 		neutrontests        = os.environ['OS_NEUTRON_TESTS'].split(',')      if os.environ.has_key('OS_NEUTRON_TESTS')      else neutrondefaulttests
 		novatests           = os.environ['OS_NOVA_TESTS'].split(',')         if os.environ.has_key('OS_NOVA_TESTS')         else novadefaulttests
 		heattests           = os.environ['OS_HEAT_TESTS'].split(',')         if os.environ.has_key('OS_HEAT_TESTS')         else heatdefaulttests
@@ -1893,7 +1906,7 @@ if __name__ == "__main__":
 		print e
 	    	os._exit(1)
 
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, cinderbackuptests=cinderbackuptests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose, timeout=timeout)
+	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose, timeout=timeout)
 	
 	if listservices:
 		print o.listservices()
@@ -1904,8 +1917,6 @@ if __name__ == "__main__":
 		o.glancetest()
 	if testcinder or testall:
 		o.cindertest()
-	if testcinderbackup or testall:
-		o.cinderbackuptest()
 	if testneutron or testall:
 		o.neutrontest()
 	if testnova or testall:
