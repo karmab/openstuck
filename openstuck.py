@@ -17,6 +17,7 @@ from neutronclient.neutron import client as neutronclient
 from novaclient import client as novaclient
 from heatclient import client as heatclient
 import ceilometerclient.client as ceilometerclient
+import swiftclient.client as swiftclient
 import json
 import yaml
 import cinderclient.exceptions as cinderexceptions
@@ -229,18 +230,18 @@ class Openstuck():
 	def Create_Container(self, swift, container, containers=None, errors=None, output=None, verbose=False):
 		starttime = time.time()
 		try:
-			tobj = os.environ['OS_SWIFT_OBJECT_PATH']   if os.environ.has_key('OS_SWIFT_OBJECT_PATH')   else None
-			if obj is not None:
-				obj = open(obj)  	
+			objdata = os.environ['OS_SWIFT_OBJECT_PATH']   if os.environ.has_key('OS_SWIFT_OBJECT_PATH')   else None
+			if objdata is not None:
+				objdata = open(objdata)  	
 			else:
-				obj = 'This is openstuck test data' 
+				objdata = 'This is openstuck test data' 
 			
+			objname = "%s-object" % (container)
 			swift.put_container(container)			
-			swift.put_object(container, obj)
+			swift.put_object(container, objname, objdata)
 			results = 'OK'
 			containers.append(container)
 		except Exception as error:
-		        print error
 			errors.append('Create_Container')
 			results = str(error)
 			containers.append(None)
@@ -1001,9 +1002,13 @@ class Openstuck():
 	def swiftclean(self, containers):
 		if self.verbose:
 			print "Cleaning Swift..."
-		keystone = self.keystone
-		endpoint = keystone.service_catalog.url_for(service_type='object',endpoint_type=self.endpoint)
-		swift    = swiftclient.Client(endpoint, token=keystone.auth_token)
+		keystone      = self.keystone
+                preauthurl   = keystone.service_catalog.url_for(service_type='object-store',endpoint_type=self.endpoint)
+                user         = self.auth_username
+                key          = self.auth_password
+                tenant_name  = self.auth_tenant_name
+                preauthtoken = keystone.auth_token
+                swift        = swiftclient.Connection(preauthurl=preauthurl, user=user, preauthtoken=preauthtoken ,insecure=True,tenant_name=tenant_name)
 		for container in containers:
 			if container is None:
 				continue
@@ -1577,10 +1582,14 @@ class Openstuck():
 		containers = mgr.list()
 		if self.verbose:
 			print "Testing Swift..."
-		keystone = self.keystone
-		endpoint = keystone.service_catalog.url_for(service_type='container',endpoint_type=self.endpoint)
-		swift = swiftclient.Client(endpoint, token=keystone.auth_token)
-	
+		keystone     = self.keystone
+		preauthurl   = keystone.service_catalog.url_for(service_type='object-store',endpoint_type=self.endpoint)
+		user         = self.auth_username
+		key          = self.auth_password
+		tenant_name  = self.auth_tenant_name
+		preauthtoken = keystone.auth_token
+		swift        = swiftclient.Connection(preauthurl=preauthurl, user=user, preauthtoken=preauthtoken ,insecure=True,tenant_name=tenant_name)
+
 		test = 'Create_Container'
 		if test in tests:
 			output = mgr.list()
