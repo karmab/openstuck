@@ -53,7 +53,6 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 
 ##TODO LIST 
 
-- wait/check for correct status before reporting volumes deletion as ok 
 - wait/check for correct status before reporting instances creation/deletion as ok 
 - wait/check for correct status before reporting heat creation/deletion as ok 
 - redefine a more advanced heat template for default testing

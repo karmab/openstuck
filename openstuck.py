@@ -68,18 +68,24 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=False, timeout=20):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=False, timeout=20, embedded=True):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
 		self.auth_url         = keystonecredentials['auth_url']
 		self.debug            = debug
 		self.novacredentials  = novacredentials
+		self.embedded	      = embedded
 		try:
-			self.keystone    = keystoneclient.Client(**keystonecredentials)
+			self.keystone = keystoneclient.Client(**keystonecredentials)
+			if embedded:
+				self.keystone.tenants.create(tenant_name=project, enabled=True)
+				self.auth_tenant_name = project
+			else:
+				self.auth_tenant_name = keystonecredentials['tenant_name']
+			
 		except Exception as e:
-			print "Got the following issue:"
-			print e
+			print "Got the following issue: %s" % str(e) 
 			os._exit(1)
 		self.keystonetests     = keystonetests 
 		self.glancetests       = glancetests 
@@ -113,6 +119,10 @@ class Openstuck():
 		self.debug            = debug
 		self.verbose          = verbose
 		self.timeout          = timeout
+	def _clean(self):
+		if self.embedded:
+			tenant = self.keystone.tenants.find(name=self.auth_tenant_name)
+			tenant.delete()
 	def _first(self, elements):
 		for element in elements:
 			if element is not None:
@@ -212,6 +222,7 @@ class Openstuck():
 			while cinder.backups.get(newbackup.id).status != 'available':
         			timein += 0.2
         			if timein > self.timeout:
+					backups.append(newbackup.id)
                 			raise Exception("Timeout waiting for status")
         			time.sleep(0.2)
 			backups.append(newbackup.id)
@@ -328,7 +339,6 @@ class Openstuck():
 			errors.append('Create_Snapshot')
 			results = 'NotRun'
 			if verbose:
-				print ['cinder', 'Create_Snapshot', 'N/A', 'N/A', '0', results,]
 				output.append(['cinder', 'Create_Snapshot', 'N/A', 'N/A', '0', results,])
 			return
 		try:
@@ -345,6 +355,7 @@ class Openstuck():
 			while cinder.volume_snapshots.get(newsnapshot.id).status != 'available':
         			timein += 0.2
         			if timein > self.timeout:
+					snapshots.append(newsnapshot.id)
                 			raise Exception("Timeout waiting for status")
         			time.sleep(0.2)
 			snapshots.append(newsnapshot.id)
@@ -463,6 +474,7 @@ class Openstuck():
                         while cinder.volumes.get(newvolume.id).status != 'available':
 				timein += 0.2
 				if timein > self.timeout:
+					volumes.append(newvolume.id)
 					raise Exception("Timeout waiting for status")
                                 time.sleep(0.2)
 			volumes.append(newvolume.id)
@@ -505,12 +517,23 @@ class Openstuck():
 				print "Delete_Backup: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'Delete_Backup', 'N/A', 'N/A', '0', results,])
 			return
-		print backup, backup.name
 		backupname = backup.name
 		try:
 			backup.delete()
-			#while cinder.backups.get(backup.id).status != 'available':
-        		#	time.sleep(0.2)
+			timein = 0
+			deleted = False
+                        while not deleted:
+				try:
+					cinder.backups.get(backup.id)
+					timein += 0.2
+					if timein > self.timeout:
+						results = 'Timeout waiting for status'
+						errors.append('Delete_Backup')
+						break
+                                	time.sleep(0.2)
+					continue
+				except cinderexceptions.NotFound:
+					deleted = True
 			results = 'OK'
 		except Exception as error:
 		        print error
@@ -642,7 +665,6 @@ class Openstuck():
 		snapshotid   = snapshot.id
 		snapshotname = snapshot.name
 		try:
-			#CHECK OVER DELETED STATUS
 			snapshot.delete()
 			timein = 0
 			deleted = False
@@ -744,8 +766,20 @@ class Openstuck():
 		volumename = volume.name
 		try:
 			volume.delete()
-			#while cinder.volumes.get(volume.id).status != 'available':
-        		#	time.sleep(0.2)
+			timein = 0
+			deleted = False
+                        while not deleted:
+				try:
+					cinder.volumes.get(volume.id)
+					timein += 0.2
+					if timein > self.timeout:
+						results = 'Timeout waiting for status'
+						errors.append('Delete_Volume')
+						break
+                                	time.sleep(0.2)
+					continue
+				except cinderexceptions.NotFound:
+					deleted = True
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Volume')
@@ -1421,7 +1455,7 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
-			backups = [ cinder.backups.get(backup_id) if backup_id is not None else None for backup_id in snapshots ]
+			backups = [ cinder.backups.get(backup_id) if backup_id is not None else None for backup_id in backups ]
 			
 		test = 'Create_Snapshot'
 		if test in tests:
@@ -1870,7 +1904,8 @@ if __name__ == "__main__":
 	parser.add_option_group(testinggroup)
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. defaults to acme')
 	parser.add_option('-t', '--timeout', dest='timeout', default=20, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] and 20 if not found')
-	parser.add_option('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Verbose mode')
+	parser.add_option('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Verbose mode. Defaults to False')
+	parser.add_option('-e', '--embedded', dest='embedded', default=True, action='store_true', help='Whether to create a dedicated Tenant to hold all tests. Defaults to True')
 	(options, args)  = parser.parse_args()
 	listservices     = options.listservices
 	testkeystone     = options.testkeystone
@@ -1886,6 +1921,7 @@ if __name__ == "__main__":
 	project          = options.project
 	verbose          = options.verbose
 	timeout          = options.timeout
+	embedded         = options.embedded
 	try:
 		keystonecredentials = _keystonecreds()
 		novacredentials     = _novacreds()
@@ -1906,7 +1942,7 @@ if __name__ == "__main__":
 		print e
 	    	os._exit(1)
 
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose, timeout=timeout)
+	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose, timeout=timeout, embedded=embedded)
 	
 	if listservices:
 		print o.listservices()
@@ -1934,3 +1970,5 @@ if __name__ == "__main__":
 			print "Testing Keystone..."
 			print "Final report:"
 		print o._printreport()
+		if embedded:
+			o._clean()
