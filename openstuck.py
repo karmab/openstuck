@@ -390,10 +390,12 @@ class Openstuck():
 			flavor  = nova.flavors.find(name=flavor)
 			nics = [{'net-id': networkid}]
 			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics)
+                        active = o._available(cinder.volumes, volume_id, timeout, status='ACTIVE')
+                        if not active:
+                                raise Exception("Timeout waiting for ACTIVE status")
 			results = 'OK'
 			servers.append(newserver.id)
 		except Exception as error:
-			#print type(error)
 			errors.append('Create_Server')
 			results = str(error)
 			servers.append(None)
@@ -570,7 +572,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Volume: %s %s seconds %s" % (volume, runningtime, results )
 			output.append(['cinder', 'Create_Volume', volume, volume, runningtime, results,])			
-	def Create_Volume_From_Snapshot(self, cinder, snapshot, volumes=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Volume_From_Snapshot(self, cinder, snapshot, snapshotvolumes=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if snapshot is None:
 			errors.append('Create_Volume_From_Snapshot')
@@ -584,7 +586,7 @@ class Openstuck():
 			snapshot_id = snapshot.id				
 			snapshot_size = snapshot.size				
 			newvolume = cinder.volumes.create(snapshot_id=snapshot_id, name=volumename, size=snapshot_size)
-			volumes.append(newvolume.id)
+			snapshotvolumes.append(newvolume.id)
 			results = 'OK'
                         available = o._available(cinder.volumes, newvolume.id, timeout)
                         if not available:
@@ -631,20 +633,11 @@ class Openstuck():
 		backupname = backup.name
 		try:
 			backup.delete()
-			timein = 0
-			deleted = False
-                        while not deleted:
-				try:
-					cinder.backups.get(backup.id)
-					timein += 0.2
-					if timein > timeout:
-						results = 'Timeout waiting for deletion'
-						errors.append('Delete_Backup')
-						break
-                                	time.sleep(0.2)
-					continue
-				except cinderexceptions.NotFound:
-					deleted = True
+			results = 'OK'
+			deleted = o._deleted(cinder.backups, backup.id, timeout)
+			if not deleted:
+				results = 'Timeout waiting for deletion'
+				errors.append('Delete_Backup')
 			results = 'OK'
 		except Exception as error:
 		        print error
@@ -756,6 +749,10 @@ class Openstuck():
 		try:
 			server.delete()
 			results = 'OK'
+			deleted = o._deleted(nova.servers, server.id, timeout)
+			if not deleted:
+				results = 'Timeout waiting for deletion'
+				errors.append('Delete_Server')
 		except Exception as error:
 			errors.append('Delete_Server')
 			results = str(error)
@@ -777,21 +774,11 @@ class Openstuck():
 		snapshotname = snapshot.name
 		try:
 			snapshot.delete()
-			timein = 0
-			deleted = False
-                        while not deleted:
-				try:
-					cinder.volume_snapshots.get(snapshot.id)
-					timein += 0.2
-					if timein > timeout:
-						results = 'Timeout waiting for deletion'
-						errors.append('Delete_Snapshot')
-						break
-                                	time.sleep(0.2)
-					continue
-				except cinderexceptions.NotFound:
-					deleted = True
 			results = 'OK'
+			deleted = o._deleted(cinder.volume_snapshots, snapshot.id, timeout)
+			if not deleted:
+				results = 'Timeout waiting for deletion'
+				errors.append('Delete_Snapshot')
 		except Exception as error:
 			errors.append('Delete_Snapshot')
 			results = str(error)
@@ -877,20 +864,6 @@ class Openstuck():
 		volumename = volume.name
 		try:
 			volume.delete()
-			#timein = 0
-			#deleted = False
-                        #while not deleted:
-			#	try:
-			#		cinder.volumes.get(volume.id)
-			#		timein += 0.2
-			#		if timein > timeout:
-			#			results = 'Timeout waiting for deletion'
-			#			errors.append('Delete_Volume')
-			#			break
-                        #        	time.sleep(0.2)
-			#		continue
-			#	except cinderexceptions.NotFound:
-			#		deleted = True
 			results = 'OK'
 			deleted = o._deleted(cinder.volumes, volume.id, timeout)
 			if not deleted:
@@ -1202,12 +1175,20 @@ class Openstuck():
 					glance.images.delete(image.id)
 				except:
 					continue
-	def cinderclean(self, volumes, backups, snapshots):
+	def cinderclean(self, volumes, snapshotvolumes, backups, snapshots):
 		if self.verbose:
 			print "Cleaning Cinder..."
 		keystone = self.keystone
 		cinder = cinderclient.Client(**self.novacredentials)
 		for volume in volumes:
+			if volume is None:
+				continue
+			else:
+				try:
+					volume.delete()
+				except:
+					continue
+		for volume in snapshotvolumes:
 			if volume is None:
 				continue
 			else:
@@ -1543,14 +1524,15 @@ class Openstuck():
 		return images
 
 	def cindertest(self):
-		category  = 'cinder'
-		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
-		tests     = self.cindertests 
-		mgr       = multiprocessing.Manager()
-		errors    = mgr.list()
-		volumes   = mgr.list()
-		backups   = mgr.list()
-		snapshots = mgr.list()
+		category        = 'cinder'
+		timeout         = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
+		tests           = self.cindertests 
+		mgr             = multiprocessing.Manager()
+		errors          = mgr.list()
+		volumes         = mgr.list()
+		snapshotvolumes = mgr.list()
+		backups         = mgr.list()
+		snapshots       = mgr.list()
 		if self.verbose:
 			print "Testing Cinder..."
 		keystone = self.keystone
@@ -1611,7 +1593,7 @@ class Openstuck():
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
-			jobs = [ multiprocessing.Process(target=self.Create_Volume_From_Snapshot, args=(cinder, snapshot, volumes, errors, output, self.verbose, timeout, )) for snapshot in snapshots ]
+			jobs = [ multiprocessing.Process(target=self.Create_Volume_From_Snapshot, args=(cinder, snapshot, snapshotvolumes, errors, output, self.verbose, timeout, )) for snapshot in snapshots ]
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1619,6 +1601,7 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
+			snapshotvolumes = [ cinder.volumes.get(volume_id) if volume_id is not None else None for volume_id in snapshotvolumes ]
 			
 		test    = 'Create_TypedVolume'
 		reftest = test
@@ -1740,7 +1723,7 @@ class Openstuck():
                                 print "%s  %s seconds" % (test, runningtime)
                         self._report(category, test, concurrency, repeat, runningtime, errors)
                         self._addrows(verbose, output)
-		return volumes, backups, snapshots
+		return volumes, snapshotvolumes, backups, snapshots
 	def neutrontest(self):
 		category = 'neutron'
 		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
@@ -2132,7 +2115,7 @@ if __name__ == "__main__":
 	if testglance or testall:
 		images = o.glancetest()
 	if testcinder or testall:
-		volumes, backups, snapshots = o.cindertest()
+		volumes, snapshotvolumes, backups, snapshots = o.cindertest()
 	if testneutron or testall:
 		networks = o.neutrontest()
 	if testnova or testall:
@@ -2151,7 +2134,7 @@ if __name__ == "__main__":
 	if testglance or testall:
 		o.glanceclean(images)
 	if testcinder or testall:
-		o.cinderclean(volumes, backups, snapshots)
+		o.cinderclean(volumes, snapshotvolumes, backups, snapshots)
 	if testneutron or testall:
 		o.neutronclean(networks)
 	if testnova or testall:
