@@ -19,6 +19,7 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - GrowVolume
 - Create_Backup
 - Create_Snapshot
+- Create_Volum_From_Snapshot
 - List_Backup
 - List_Snapshot
 - Delete_Backup
@@ -50,6 +51,16 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - OS_CINDERBACKUP_VOLUME defaults to volume. If specified, it should be an existing volume with a unique name accross all tenants
 - OS_CINDERBACKUP_ID     defaults to None. This is an alternative around the existing limitations of OS_CINDERBACKUP_VOLUME
 - OS_SWIFT_OBJECT_PATH	 defaults to the string  This is openstuck test data
+- OS_TIMEOUT		 generic timeout value when waiting for status of created resources
+- OS_KEYSTONE_TIMEOUT	
+- OS_CINDER_TIMEOUT
+- OS_GLANCE_TIMEOUT
+- OS_NEUTRON_TIMEOUT		
+- OS_NOVA_TIMEOUT		
+- OS_CEILOMETER_TIMEOUT		
+- OS_SWIFT_TIMEOUT		
+- OS_HEAT_TIMEOUT		
+
 
 ##TODO LIST 
 
@@ -58,9 +69,9 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - redefine a more advanced heat template for default testing
 - improve values for testing alarms creation (threshold and metrics with some sense)
 - add listmeters to test ( and stressing of instance to check it s reported by ceilometer)
-- confine all tests to a given tenant
 - specific timeout env variables per component ?
 - handle specifically known exceptions instead of beeing generic
+- provide early errors in verbose mode with every print, instead of waiting for the table to report errors
 
 ##Known bugs
 - Create_Backup race condition giving a "Invalid volume: Volume to be backed up must be available" message

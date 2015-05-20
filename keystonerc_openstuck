@@ -1,9 +1,11 @@
 export OS_GLANCE_IMAGE_PATH="/tmp/cirros-0.3.3-x86_64-disk.img"
 export Create_Tenant=5:5
 export Create_Alarm=8:5
-export Create_Volume=5:1
+export Create_Volume=3:1
 export Create_Backup=2:3
 export Create_Backup=1:1
 export Create_Container=20:3
 export OS_TIMEOUT=60
-export OS_CINDER_TESTS=Create_Volume,Create_Backup,Create_Snapshot,List_Volume,List_Backup,List_Snapshot,Delete_Volume,Delete_Backup,Delete_Snapshot
+#export OS_CINDER_TESTS=Create_Volume,Create_Backup,Create_Snapshot,List_Volume,List_Backup,List_Snapshot,Delete_Volume,Delete_Backup,Delete_Snapshot
+export OS_CINDER_TESTS=Create_Volume,Create_Backup,Create_Snapshot,Create_Volume_From_Snapshot,List_Volume,List_Backup,List_Snapshot,Delete_Volume,Delete_Backup,Delete_Snapshot
+export OS_CINDER_TIMEOUT=100
