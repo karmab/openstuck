@@ -69,9 +69,7 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - redefine a more advanced heat template for default testing
 - improve values for testing alarms creation (threshold and metrics with some sense)
 - add listmeters to test ( and stressing of instance to check it s reported by ceilometer)
-- specific timeout env variables per component ?
 - handle specifically known exceptions instead of beeing generic
-- provide early errors in verbose mode with every print, instead of waiting for the table to report errors
 
 ##Known bugs
 - Create_Backup race condition giving a "Invalid volume: Volume to be backed up must be available" message
