@@ -389,13 +389,15 @@ class Openstuck():
 			flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
 			flavor  = nova.flavors.find(name=flavor)
 			nics = [{'net-id': networkid}]
+			print flavor, nics, image
 			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics)
-                        active = o._available(cinder.volumes, volume_id, timeout, status='ACTIVE')
+                        active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
                         if not active:
                                 raise Exception("Timeout waiting for ACTIVE status")
 			results = 'OK'
 			servers.append(newserver.id)
 		except Exception as error:
+			print type(error)
 			errors.append('Create_Server')
 			results = str(error)
 			servers.append(None)
