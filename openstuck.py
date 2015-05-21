@@ -43,9 +43,10 @@ __status__     = 'Testing'
 
 keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_Role', 'ListRole', 'Authenticate_User', 'Delete_User', 'Delete_Role', 'Delete_Tenant']
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
-cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume']
+#cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume','Reach_VolumeQuota', 'Reach_StorageQuota']
+cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume','Reach_VolumeQuota']
 neutrondefaulttests      = ['Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network']
-novadefaulttests         = ['Create_Server', 'List_Server', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_Server', 'List_Server', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -122,6 +123,7 @@ class Openstuck():
         	self.subnet            = "%ssubnet" % project
         	self.router            = "%srouter" % project
         	self.server            = "%sserver" % project
+        	self.flavor            = "%sflavor" % project
         	self.stack             = "%sstack" % project
         	self.alarm             = "%salarm" % project
         	self.container         = "%scontainer" % project
@@ -217,7 +219,7 @@ class Openstuck():
 		timein = 0
 		while True:
 			try:
-				print manager.get(objectid)
+				manager.get(objectid)
 				timein += 0.2
 				if timein > timeout:
 					return False
@@ -355,7 +357,24 @@ class Openstuck():
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Container: %s %s seconds %s" % (container, runningtime, results )
-			output.append(['swiftcontainer', 'Create_Container', container, container, runningtime, results,])		
+			output.append(['swiftcontainer', 'Create_Container', container, container, runningtime, results,])	
+			
+	def Create_Flavor(self, nova, flavor, flavors=None, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		try:
+			newflavor = nova.flavors.create(name=flavor,ram=512,vcpus=1,disk=1)
+			results = 'OK'
+			flavors.append(newflavor.id)
+		except Exception as error:
+			errors.append('Create_Flavor')
+			results = str(error)
+			flavors.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_Flavor: %s %s seconds %s" % (flavor, runningtime, results )
+			output.append(['nova', 'Create_Flavor', flavor, flavor, runningtime, results,])
+
 	def Create_Image(self, glance, image, imagepath, images=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
@@ -737,6 +756,29 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Container: %s %s seconds %s" % (container, runningtime, results)
 			output.append(['swift', 'Delete_Container', container, container, runningtime, results,])
+			
+	def Delete_Flavor(self, nova, flavor, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if flavor is None:
+			errors.append('Delete_Flavor')
+			results = 'NotRun'
+			if verbose:
+				print "Delete_Flavor: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Delete_Flavor', 'N/A', 'N/A', '0', results,])
+			return
+		flavorname = flavor.name
+		try:
+			flavor.delete()
+			results = 'OK'
+		except Exception as error:
+			errors.append('Delete_Flavor')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Flavor: %s %s seconds %s" % (flavorname, runningtime, results)
+			output.append(['nova', 'Delete_Flavor', flavorname, flavorname, runningtime, results,])			
+
 	def Delete_Image(self, glance, image, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if image is None:
@@ -1058,6 +1100,28 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Backup: %s %s seconds %s" % (backup.name, runningtime, results)
 			output.append(['cinderbackup', 'List_Backup', backup.name, backup.name, runningtime, results,])	
+			
+	def List_Flavor(self, nova, flavor, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if flavor is None:
+			results = 'NotRun'
+			errors.append('List_Flavor')
+			if verbose:
+				print "List_Flavor: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'List_Flavor', 'N/A', 'N/A', '0', results,])
+			return
+		try:
+			nova.flavors.get(flavor.id)
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Flavor')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Flavor: %s %s seconds %s" % (flavor.name, runningtime, results)
+			output.append(['nova', 'List_Flavor', flavor.name, flavor.name, runningtime, results,])			
+			
 	def List_Container(self, swift, container, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if container is None:
@@ -1287,6 +1351,31 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Volume: %s %s seconds %s" % (volume.name, runningtime, results)
 			output.append(['cinder', 'List_Volume', volume.name, volume.name, runningtime, results,])
+	def Reach_VolumeQuota(self, cinder, errors=None, output=None, verbose=False, timeout=20):
+		quotavolumes = []
+		errors = []
+		starttime = time.time()
+		try:
+			maxvolumes = cinder.quotas.get(self.keystone.tenant_id).volumes
+			currentvolumes = len(cinder.volumes.list())
+			for  step in range(0,maxvolumes-currentvolumes+1):
+				newvolume = cinder.volumes.create(size=1, name='quotavolume')
+                        	o._available(cinder.volumes, newvolume.id, timeout)
+				quotavolumes.append(newvolume)
+			results = 'QuotaNotRespected'
+			errors.append('Reach_VolumeQuota')
+		except cinderexceptions.OverLimit:
+			results = 'OK'
+		except Exception as error:
+			errors.append('Reach_VolumeQuota')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Reach_VolumeQuota: %s seconds %s" % (runningtime, results )
+			output.append(['cinder', 'Reach_VolumeQuota', 'volumequota', 'volumequota', runningtime, results,])
+		return quotavolumes
+
 	def _printreport(self):
 		return self.output
 	def listservices(self):
@@ -1340,7 +1429,7 @@ class Openstuck():
 					glance.images.delete(image.id)
 				except:
 					continue
-	def cinderclean(self, volumes, snapshotvolumes, backups, snapshots):
+	def cinderclean(self, volumes, snapshotvolumes, backups, snapshots, quotavolumes):
 		if self.verbose:
 			print "Cleaning Cinder..."
 		keystone = self.keystone
@@ -1376,6 +1465,14 @@ class Openstuck():
 				try:
 					snapshot.delete()
 				except:
+					continue
+		for quotavolume in quotavolumes:
+			if quotavolume is None:
+				continue
+			else:
+				try:
+					quotavolume.delete()
+				except Exception as e:
 					continue
 
 	def cinderbackupclean(self, backups):
@@ -1912,7 +2009,21 @@ class Openstuck():
                                 print "%s  %s seconds" % (test, runningtime)
                         self._report(category, test, concurrency, repeat, runningtime, errors)
                         self._addrows(verbose, output)
-		return volumes, snapshotvolumes, backups, snapshots
+
+		test    = 'Reach_VolumeQuota'
+		if test in tests:
+			output       = []
+			errors       = []
+                	concurrency, repeat = 1, 1
+			starttime = time.time()
+			quotavolumes = self.Reach_VolumeQuota(cinder)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors=[])
+			self._addrows(verbose, output)
+		return volumes, snapshotvolumes, backups, snapshots, quotavolumes
 	def neutrontest(self):
 		category = 'neutron'
 		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
@@ -2074,12 +2185,61 @@ class Openstuck():
 		tests     = self.novatests 
 		mgr       = multiprocessing.Manager()
 		errors    = mgr.list()
-		servers = mgr.list()
+		flavors   = mgr.list()
+		servers   = mgr.list()
 		if self.verbose:
 			print "Testing Nova..."
 		keystone = self.keystone
 		nova = novaclient.Client('2', **self.novacredentials)
 		
+		test    = 'Create_Flavor'
+		reftest = test
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Flavor, args=(nova, "%s-%d-%d" % (self.flavor, step, number), flavors, errors, output, self.verbose, timeout, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			flavors = [ nova.flavors.get(flavor_id) if flavor_id is not None else None for flavor_id in flavors ]
+
+		test    = 'List_Flavor'
+		reftest = 'Create_Flavor'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Flavor, args=(nova, flavor, errors, output, self.verbose, timeout, )) for flavor in flavors ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test    = 'Delete_Flavor'
+		reftest = 'Create_Flavor'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Flavor, args=(nova, flavor, errors, output, self.verbose, timeout, )) for flavor in flavors ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+	
 		test    = 'Create_Server'
 		reftest = test
 		if test in tests:
@@ -2398,7 +2558,7 @@ if __name__ == "__main__":
 	if testglance or testall:
 		images = o.glancetest()
 	if testcinder or testall:
-		volumes, snapshotvolumes, backups, snapshots = o.cindertest()
+		volumes, snapshotvolumes, backups, snapshots, quotavolumes = o.cindertest()
 	if testneutron or testall:
 		networks, subnets, routers = o.neutrontest()
 	if testnova or testall:
@@ -2421,7 +2581,7 @@ if __name__ == "__main__":
 	if testglance or testall:
 		o.glanceclean(images)
 	if testcinder or testall:
-		o.cinderclean(volumes, snapshotvolumes, backups, snapshots)
+		o.cinderclean(volumes, snapshotvolumes, backups, snapshots, quotavolumes)
 	if testneutron or testall:
 		o.neutronclean(networks, subnets, routers)
 	if testnova or testall:
