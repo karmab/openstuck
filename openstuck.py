@@ -44,7 +44,7 @@ __status__     = 'Testing'
 keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_Role', 'ListRole', 'Authenticate_User', 'Delete_User', 'Delete_Role', 'Delete_Tenant']
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume']
-neutrondefaulttests      = ['Create_Network', 'Create_Subnet', 'List_Network', 'List_Subnet', 'Delete_Subnet', 'Delete_Network']
+neutrondefaulttests      = ['Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network']
 novadefaulttests         = ['Create_Server', 'List_Server', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
@@ -76,7 +76,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=20, embedded=True):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=20, embedded=True, externalid=None):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -84,6 +84,7 @@ class Openstuck():
 		self.debug            = debug
 		self.novacredentials  = novacredentials
 		self.embedded	      = embedded
+		self.externalid	      = externalid
 		try:
 			self.keystone = keystoneclient.Client(**keystonecredentials)
 			if embedded:
@@ -119,6 +120,7 @@ class Openstuck():
         	self.volumetype        = volumetype
         	self.network           = "%snetwork" % project
         	self.subnet            = "%ssubnet" % project
+        	self.router            = "%srouter" % project
         	self.server            = "%sserver" % project
         	self.stack             = "%sstack" % project
         	self.alarm             = "%salarm" % project
@@ -403,6 +405,32 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Create_Role: %s %s seconds %s" % (name, runningtime, results)
 			output.append(['keystone', 'Create_Role', name, name, runningtime, results,])
+	def Create_Router(self, neutron, router, subnet, externalid, routers=None, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if subnet is None:
+			errors.append('Create_Router')
+			results = 'NotRun'
+			if verbose:
+				output.append(['neutron', 'Create_Router', 'N/A', 'N/A', '0', results,])
+			return
+		subnetid  = subnet['id']
+		try:
+			newrouter = {'name':router}
+			if externalid:
+				newrouter['external_gateway_info']= {"network_id": externalid, "enable_snat": True}
+                        newrouter = neutron.create_router({'router':newrouter})
+			routerid  = newrouter['router']['id']
+			neutron.add_interface_router(routerid,{'subnet_id':subnetid } )
+			results = 'OK'
+			routers.append(routerid)
+		except Exception as error:
+			errors.append('Create_Router')
+			results = str(error)
+			routers.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_Router: %s %s seconds %s" % (router, runningtime, results )
 	def Create_Server(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
@@ -471,14 +499,6 @@ class Openstuck():
 		try:
 			template  = os.environ['OS_HEAT_TEMPLATE']   if os.environ.has_key('OS_HEAT_TEMPLATE')   else None
 			if template is None:
-				#if not embedded:
-				#	image     = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
-				#	image     = nova.images.find(name=image)
-				#	network   = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
-				#	networkid = nova.networks.find(label=network).id
-				#else:
-				#	image     = nova.images.find(name='novaimage')
-				#	network   = 'novanet'
 				if not embedded:
 					image     = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
 					network   = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
@@ -521,7 +541,6 @@ class Openstuck():
 				output.append(['neutron', 'Create_Subnet', 'N/A', 'N/A', '0', results,])
 			return
 		networkid  = network['id']
-		#subnet = "subnet-%s" % network['name']
 		try:
 			newsubnet = {'name':subnet, 'network_id':networkid,'ip_version':4,"cidr":cidr}
                         newsubnet = neutron.create_subnet({'subnet':newsubnet})
@@ -781,6 +800,34 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Role: %s %s seconds %s" % (rolename, runningtime, results)
 			output.append(['keystone', 'Delete_Role', rolename, rolename, runningtime, results,])
+	def Delete_Router(self, neutron, router, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if router is None:
+			errors.append('Delete_Router')
+			results = 'NotRun'
+			if verbose:
+				print "Delete_Router: %s 0 seconds" % 'N/A'
+				output.append(['neutron', 'Delete_Router', 'N/A', 'N/A', '0', results,])
+			return
+		routerid     = router['id']
+		routername   = router['name']
+		try:
+        		if router['external_gateway_info']:
+                		neutron.remove_gateway_router(routerid)
+        		ports = [ p for p in neutron.list_ports()['ports'] if p['device_id'] == routerid ]
+        		for port in ports:
+                		portid = port['id']
+                		neutron.remove_interface_router(routerid, {'port_id':portid})
+        		neutron.delete_router(routerid)
+			results = 'OK'
+		except Exception as error:
+			errors.append('Delete_Router')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Router: %s %s seconds %s" % (routername, runningtime, results)
+			output.append(['neutron', 'Delete_Router', routername, routername, runningtime, results,])
 	def Delete_Server(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if server is None:
@@ -1184,8 +1231,8 @@ class Openstuck():
 		subnet_id   = subnet['id']
 		subnet_name = subnet['name']
 		try:
-			findsubnets = [ subnet for subnet in neutron.list_subnets()['subnets'] if subnet['id'] == subnet_id ]
-			if not findsubnets:
+			found = [ subnet for subnet in neutron.list_subnets()['subnets'] if subnet['id'] == subnet_id ]
+			if not found:
 				raise Exception('Subnet not found')
 			results = 'OK'
 		except Exception as error:
@@ -1196,6 +1243,30 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Subnet: %s %s seconds %s" % (subnet_name, runningtime, results)
 			output.append(['neutron', 'List_Subnet', subnet_name, subnet_name, runningtime, results,])
+	def List_Router(self, neutron, router, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if router is None:
+			results = 'NotRun'
+			errors.append('List_Router')
+			if verbose:
+				print "List_Router: %s 0 seconds" % 'N/A'
+				output.append(['neutron', 'List_Router', 'N/A', 'N/A', '0', results,])
+			return
+		router_id   = router['id']
+		router_name = router['name']
+		try:
+			found = [ router for router in neutron.list_routers()['routers'] if router['id'] == router_id ]
+			if not found:
+				raise Exception('Router not found')
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Router')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Router: %s %s seconds %s" % (router_name, runningtime, results)
+			output.append(['neutron', 'List_Router', router_name, router_name, runningtime, results,])
 	def List_Volume(self, cinder, volume, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if volume is None:
@@ -1321,18 +1392,26 @@ class Openstuck():
 				except:
 					continue
 
-	def neutronclean(self, networks, subnets):
+	def neutronclean(self, networks, subnets, routers):
 		if self.verbose:
 			print "Cleaning Neutron..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
 		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token)
-		for network in networks:
-			if network is None:
+		for router in routers:
+			if router is None:
 				continue
 			else:
 				try:
-					neutron.networks.delete(network['id'])
+					routerid     = router['id']
+					routername   = router['name']
+        				if router['external_gateway_info']:
+                				neutron.remove_gateway_router(routerid)
+        				ports = [ p for p in neutron.list_ports()['ports'] if p['device_id'] == routerid ]
+        				for port in ports:
+                				portid = port['id']
+                				neutron.remove_interface_router(routerid, {'port_id':portid})
+        				neutron.delete_router(routerid)
 				except:
 					continue
 		for subnet in subnets:
@@ -1340,7 +1419,15 @@ class Openstuck():
 				continue
 			else:
 				try:
-					neutron.subnet.delete(subnet['id'])
+					neutron.subnets.delete(subnet['id'])
+				except:
+					continue
+		for network in networks:
+			if network is None:
+				continue
+			else:
+				try:
+					neutron.networks.delete(network['id'])
 				except:
 					continue
 	def novaclean(self, servers):
@@ -1834,6 +1921,7 @@ class Openstuck():
 		errors   = mgr.list()
 		networks = mgr.list()
 		subnets  = mgr.list()
+		routers  = mgr.list()
 		if self.verbose:
 			print "Testing Neutron..."
 		keystone = self.keystone
@@ -1889,6 +1977,67 @@ class Openstuck():
 			self._addrows(verbose, output)
 			subnets = [ subnet if subnet is not None else None for subnet in neutron.list_subnets()['subnets'] if subnet['id'] in subnets ]
 
+		test    = 'List_Subnet'
+		reftest = 'Create_Subnet'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Subnet, args=(neutron, subnet, errors, output, self.verbose, timeout, )) for subnet in subnets ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test    = 'Create_Router'
+		reftest = 'Create_Network'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Create_Router, args=(neutron, "%s-%d-%d" % (self.router, step, number), subnet, self.externalid,  routers, errors, output, self.verbose, timeout, )) for subnet in subnets ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			routers = [ router if router is not None else None for router in neutron.list_routers()['routers'] if router['id'] in routers ]
+
+		test    = 'List_Router'
+		reftest = 'Create_Router'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_Router, args=(neutron, router, errors, output, self.verbose, timeout, )) for router in routers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test    = 'Delete_Router'
+		reftest = 'Create_Network'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Router, args=(neutron, router, errors, output, self.verbose, timeout, )) for router in routers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
 		test    = 'Delete_Subnet'
 		reftest = 'Create_Network'
 		if test in tests:
@@ -1918,7 +2067,7 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 
-		return networks, subnets
+		return networks, subnets, routers
 	def novatest(self):
 		category  = 'nova'
 		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
@@ -2231,6 +2380,7 @@ if __name__ == "__main__":
 		ceilometertests     = os.environ['OS_CEILOMETER_TESTS'].split(',')   if os.environ.has_key('OS_CEILOMETER_TESTS')   else ceilometerdefaulttests
 		imagepath           = os.environ['OS_GLANCE_IMAGE_PATH']             if os.environ.has_key('OS_GLANCE_IMAGE_PATH')  else None
 		volumetype          = os.environ['OS_CINDER_VOLUME_TYPE']            if os.environ.has_key('OS_CINDER_VOLUME_TYPE') else None
+		externalid          = os.environ['OS_NEUTRON_EXTERNALID']            if os.environ.has_key('OS_NEUTRON_EXTERNALID') else None
 		timeout             = int(os.environ['OS_TIMEOUT'])                  if os.environ.has_key('OS_TIMEOUT')            else timeout
 	except Exception as e:
 		print "Missing environment variables. source your openrc file first"
@@ -2238,7 +2388,7 @@ if __name__ == "__main__":
 	    	os._exit(1)
 	if listservices:
 		embedded = False
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose, timeout=timeout, embedded=embedded)
+	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose, timeout=timeout, embedded=embedded, externalid=externalid)
 	#testing
 	if listservices:
 		print o.listservices()
@@ -2250,7 +2400,7 @@ if __name__ == "__main__":
 	if testcinder or testall:
 		volumes, snapshotvolumes, backups, snapshots = o.cindertest()
 	if testneutron or testall:
-		networks, subnets = o.neutrontest()
+		networks, subnets, routers = o.neutrontest()
 	if testnova or testall:
 		if embedded:
 			o._novabefore()
@@ -2273,7 +2423,7 @@ if __name__ == "__main__":
 	if testcinder or testall:
 		o.cinderclean(volumes, snapshotvolumes, backups, snapshots)
 	if testneutron or testall:
-		o.neutronclean(networks, subnets)
+		o.neutronclean(networks, subnets, routers)
 	if testnova or testall:
 		o.novaclean(servers)
 	if testheat or testall:

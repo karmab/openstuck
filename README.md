@@ -60,6 +60,7 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - OS_CEILOMETER_TIMEOUT		
 - OS_SWIFT_TIMEOUT		
 - OS_HEAT_TIMEOUT		
+- OS_NEUTRON_EXTERNALID
 
 
 ##TODO LIST 
@@ -71,6 +72,8 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - add listmeters to test ( and stressing of instance to check it s reported by ceilometer)
 - handle specifically known exceptions instead of beeing generic
 - improve Create_Subnet function to be able to create more than 254 networks as we use the current step to establish cidr (optionally dont do steps, and create as many subnets as nets, one subnet per net...)
+- add tenantid in network creation tests
+
 
 ##Known bugs
 - Create_Backup race condition giving a "Invalid volume: Volume to be backed up must be available" message

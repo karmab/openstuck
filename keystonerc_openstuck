@@ -9,3 +9,4 @@ export OS_TIMEOUT=60
 #export OS_CINDER_TESTS=Create_Volume,Create_Backup,Create_Snapshot,List_Volume,List_Backup,List_Snapshot,Delete_Volume,Delete_Backup,Delete_Snapshot
 export OS_CINDER_TESTS=Create_Volume,Create_Backup,Create_Snapshot,Create_Volume_From_Snapshot,List_Volume,List_Backup,List_Snapshot,Delete_Backup,Delete_Snapshot,Delete_Volume
 export OS_CINDER_TIMEOUT=80
+export OS_NEUTRON_EXTERNALID=1c088714-f625-4cfb-81cf-e78c25e061df
