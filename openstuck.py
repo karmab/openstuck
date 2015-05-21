@@ -4,12 +4,15 @@ script to quickly test an openstack installation
 based on api info found at http://www.ibm.com/developerworks/cloud/library/cl-openstack-pythonapis/
 """
 
+import json
 import multiprocessing
 import optparse
 import os
 from prettytable import PrettyTable
+import random
 import sys
 import time
+import yaml
 import cinderclient.exceptions as cinderexceptions
 import novaclient.exceptions   as novaexceptions
 from keystoneclient.openstack.common.apiclient.exceptions   import NotFound               as keystone_notfound
@@ -28,8 +31,6 @@ from novaclient import client as novaclient
 from heatclient import client as heatclient
 import ceilometerclient.client as ceilometerclient
 import swiftclient.client as swiftclient
-import json
-import yaml
 
 __author__     = 'Karim Boumedhel'
 __credits__    = ['Karim Boumedhel']
@@ -117,6 +118,7 @@ class Openstuck():
         	self.volume            = "%svolume" % project
         	self.volumetype        = volumetype
         	self.network           = "%snetwork" % project
+        	self.subnet            = "%ssubnet" % project
         	self.server            = "%sserver" % project
         	self.stack             = "%sstack" % project
         	self.alarm             = "%salarm" % project
@@ -231,6 +233,14 @@ class Openstuck():
 			time.sleep(0.2)
 		return True
 
+	def _nextcidr(self, neutron):
+		cidrs = [ subnet['cidr'] for subnet in  neutron.list_subnets()['subnets'] ]
+		while True:
+        		i, j, k = random.randint(1,254), random.randint(1,254), random.randint(1,254)
+        		cidr    = "%s.%s.%s.0/24" % (i, j, k)
+        		if cidr not in cidrs:
+                		break
+		return cidr
 	def Add_Role(self, keystone, user, role, tenant, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if tenant is None or user is None:
@@ -502,7 +512,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Stack: %s %s seconds %s" % (stack, runningtime, results )
 			output.append(['heat', 'Create_Stack', stack, stack, runningtime, results,])
-	def Create_Subnet(self, neutron, subnet, network, subnets=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Subnet(self, neutron, subnet, network, cidr='10.0.0.0/24', subnets=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if network is None:
 			errors.append('Create_Subnet')
@@ -510,12 +520,13 @@ class Openstuck():
 			if verbose:
 				output.append(['neutron', 'Create_Subnet', 'N/A', 'N/A', '0', results,])
 			return
-		subnet = "subnet-%s" % network.name
+		networkid  = network['id']
+		#subnet = "subnet-%s" % network['name']
 		try:
-			newsubnet = {'name': network, 'admin_state_up': True}
-			newsubnet = neutron.create_subnet({'subnet':newsubnet})
+			newsubnet = {'name':subnet, 'network_id':networkid,'ip_version':4,"cidr":cidr}
+                        newsubnet = neutron.create_subnet({'subnet':newsubnet})
 			results = 'OK'
-			subnets.append(newnetwork['network']['id'])
+			subnets.append(newsubnet['subnet']['id'])
 		except Exception as error:
 			errors.append('Create_Subnet')
 			results = str(error)
@@ -848,6 +859,27 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Stack: %s %s seconds %s" % (stackname, runningtime, results)
 			output.append(['heat', 'Delete_Stack', stackname, stackname, runningtime, results,])
+	def Delete_Subnet(self, neutron, subnet, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if subnet is None:
+			errors.append('Delete_Subnet')
+			results = 'NotRun'
+			if verbose:
+				print "Delete_Subnet: %s 0 seconds" % 'N/A'
+				output.append(['neutron', 'Delete_Subnet', 'N/A', 'N/A', '0', results,])
+			return
+		subnetname = subnet['name']
+		subnetid   = subnet['id']
+		try:
+			neutron.delete_subnet(subnetid)
+			results = 'OK'
+		except Exception as error:
+			errors.append('Delete_Subnet')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Subnet: %s %s seconds %s" % (subnetname, runningtime, results)
 	def Delete_Tenant(self, keystone, tenant, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if tenant is None:
@@ -1140,6 +1172,30 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Stack: %s %s seconds %s" % (stackname, runningtime, results)
 			output.append(['heat', 'List_Stack', stackname, stackname, runningtime, results,])
+	def List_Subnet(self, neutron, subnet, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if subnet is None:
+			results = 'NotRun'
+			errors.append('List_Subnet')
+			if verbose:
+				print "List_Subnet: %s 0 seconds" % 'N/A'
+				output.append(['neutron', 'List_Subnet', 'N/A', 'N/A', '0', results,])
+			return
+		subnet_id   = subnet['id']
+		subnet_name = subnet['name']
+		try:
+			findsubnets = [ subnet for subnet in neutron.list_subnets()['subnets'] if subnet['id'] == subnet_id ]
+			if not findsubnets:
+				raise Exception('Subnet not found')
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Subnet')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Subnet: %s %s seconds %s" % (subnet_name, runningtime, results)
+			output.append(['neutron', 'List_Subnet', subnet_name, subnet_name, runningtime, results,])
 	def List_Volume(self, cinder, volume, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if volume is None:
@@ -1265,7 +1321,7 @@ class Openstuck():
 				except:
 					continue
 
-	def neutronclean(self, networks):
+	def neutronclean(self, networks, subnets):
 		if self.verbose:
 			print "Cleaning Neutron..."
 		keystone = self.keystone
@@ -1277,6 +1333,14 @@ class Openstuck():
 			else:
 				try:
 					neutron.networks.delete(network['id'])
+				except:
+					continue
+		for subnet in subnets:
+			if subnet is None:
+				continue
+			else:
+				try:
+					neutron.subnet.delete(subnet['id'])
 				except:
 					continue
 	def novaclean(self, servers):
@@ -1769,6 +1833,7 @@ class Openstuck():
 		mgr      = multiprocessing.Manager()
 		errors   = mgr.list()
 		networks = mgr.list()
+		subnets  = mgr.list()
 		if self.verbose:
 			print "Testing Neutron..."
 		keystone = self.keystone
@@ -1807,6 +1872,38 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 
+		test    = 'Create_Subnet'
+		reftest = 'Create_Network'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_Subnet, args=(neutron, "%s-%d-%d" % (self.subnet, step, number), self._first(networks), self._nextcidr(neutron), subnets, errors, output, self.verbose, timeout, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			subnets = [ subnet if subnet is not None else None for subnet in neutron.list_subnets()['subnets'] if subnet['id'] in subnets ]
+
+		test    = 'Delete_Subnet'
+		reftest = 'Create_Network'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_Subnet, args=(neutron, subnet, errors, output, self.verbose, timeout, )) for subnet in subnets ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
 		test    = 'Delete_Network'
 		reftest = 'Create_Network'
 		if test in tests:
@@ -1820,8 +1917,8 @@ class Openstuck():
 			if verbose:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
-			self._addrows(verbose, output)
-		return networks
+
+		return networks, subnets
 	def novatest(self):
 		category  = 'nova'
 		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
@@ -2153,7 +2250,7 @@ if __name__ == "__main__":
 	if testcinder or testall:
 		volumes, snapshotvolumes, backups, snapshots = o.cindertest()
 	if testneutron or testall:
-		networks = o.neutrontest()
+		networks, subnets = o.neutrontest()
 	if testnova or testall:
 		if embedded:
 			o._novabefore()
@@ -2176,7 +2273,7 @@ if __name__ == "__main__":
 	if testcinder or testall:
 		o.cinderclean(volumes, snapshotvolumes, backups, snapshots)
 	if testneutron or testall:
-		o.neutronclean(networks)
+		o.neutronclean(networks, subnets)
 	if testnova or testall:
 		o.novaclean(servers)
 	if testheat or testall:
@@ -2186,7 +2283,7 @@ if __name__ == "__main__":
 	if testswift or testall:
 		o.swiftclean(containers)
 	#reporting
-	if testkeystone or testglance or testcinder or testnova or testheat or testceilometer or testswift or testha or testall:
+	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testceilometer or testswift or testha or testall:
 		if verbose:
 			print "Testing Keystone..."
 			print "Final report:"
