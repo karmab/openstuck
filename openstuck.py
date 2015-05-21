@@ -11,6 +11,7 @@ from prettytable import PrettyTable
 import sys
 import time
 import cinderclient.exceptions as cinderexceptions
+import novaclient.exceptions   as novaexceptions
 from keystoneclient.openstack.common.apiclient.exceptions   import NotFound               as keystone_notfound
 from glanceclient.exc                                       import HTTPNotFound           as glance_notfound
 from cinderclient.exceptions                                import NotFound               as cinder_notfound
@@ -126,22 +127,31 @@ class Openstuck():
 	def _novabefore(self):
 		novaimage	= 'novaimage'
 		novanet		= 'novanet'
-		novasubnet	= 'nosubnet'
+		novasubnet	= 'novasubnet'
 		imagepath       = self.imagepath
 		keystone        = self.keystone
                 glanceendpoint  = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
-		image           = glance.images.create(name=novaimage, visibility='public', disk_format='qcow2',container_format='bare')
-		if imagepath is not None:
-			with open(imagepath,'rb') as data:
-				glance.images.upload(image.id, data)
-		network         = {'name': novanet, 'admin_state_up': True}
-		network         = neutron.create_network({'network':network})
-		networkid       = network['network']['id']
-		subnet          = {'name':novasubnet, 'network_id':networkid,'ip_version':4,"cidr":'10.0.0.0/24'}
-		subnet          = neutron.create_subnet({'subnet':subnet})
+		images = [ image for image in glance.images.list() if image.name == novaimage]
+		if len(images) != 1:
+			image           = glance.images.create(name=novaimage, visibility='public', disk_format='qcow2',container_format='bare')
+			if imagepath is not None:
+				with open(imagepath,'rb') as data:
+					glance.images.upload(image.id, data)
+		novanets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == novanet ]
+		if not novanets:
+			network         = {'name': novanet, 'admin_state_up': True}
+			network         = neutron.create_network({'network':network})
+			networkid       = network['network']['id']
+		else:
+			networkid  = novanets[0]['id']
+		novasubnets     = [ n for n in neutron.list_subnets()['subnets'] if n['name'] == novasubnet ]
+		if not novasubnets:
+			subnet          = {'name':novasubnet, 'network_id':networkid,'ip_version':4,"cidr":'10.0.0.0/24'}
+			subnet          = neutron.create_subnet({'subnet':subnet})
+		return 
 	def _novaafter(self):
 		novaimage	= 'novaimage'
 		novanet		= 'novanet'
@@ -182,7 +192,7 @@ class Openstuck():
 		for j in jobs:
 			j.join()
 	def _addrows(self, verbose, rows):
-		if not verbose or len(rows) == 0:
+		if not verbose or not rows:
 			return
 		for row in rows:
 			self.output.add_row(row)
@@ -203,7 +213,7 @@ class Openstuck():
 		timein = 0
 		while True:
 			try:
-				manager.get(objectid)
+				print manager.get(objectid)
 				timein += 0.2
 				if timein > timeout:
 					return False
@@ -211,6 +221,15 @@ class Openstuck():
 				continue
 			except (keystone_notfound, glance_notfound, cinder_notfound, nova_notfound, neutron_notfound, heat_notfound, ceilometer_notfound, swift_notfound):
 				return True
+	def _stackdeleted(self, manager, objectid, timeout):
+		status = 'DELETE_COMPLETE'
+		timein = 0
+		while manager.get(objectid).stack_status != status:
+			timein += 0.2
+			if timein > timeout:
+				return False
+			time.sleep(0.2)
+		return True
 
 	def Add_Role(self, keystone, user, role, tenant, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
@@ -383,13 +402,11 @@ class Openstuck():
 				network   = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
 				networkid = nova.networks.find(label=network).id
 			else:
-				self._novabefore()
 				image     = nova.images.find(name='novaimage')
 				networkid = nova.networks.find(label='novanet').id
 			flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
 			flavor  = nova.flavors.find(name=flavor)
 			nics = [{'net-id': networkid}]
-			print flavor, nics, image
 			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics)
                         active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
                         if not active:
@@ -444,9 +461,21 @@ class Openstuck():
 		try:
 			template  = os.environ['OS_HEAT_TEMPLATE']   if os.environ.has_key('OS_HEAT_TEMPLATE')   else None
 			if template is None:
-				image         = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
-				flavor        = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
-				network       = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+				#if not embedded:
+				#	image     = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
+				#	image     = nova.images.find(name=image)
+				#	network   = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+				#	networkid = nova.networks.find(label=network).id
+				#else:
+				#	image     = nova.images.find(name='novaimage')
+				#	network   = 'novanet'
+				if not embedded:
+					image     = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
+					network   = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+				else:
+					image     = 'novaimage'
+					network   = 'novanet'
+				flavor = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
 				stackinstance = "%sinstance" % stack
 				template={'heat_template_version': '2013-05-23', 'description': 'Testing Template', 'resources': 
 				 	{stackinstance: {'type': 'OS::Nova::Server', 'properties': {'image': image,
@@ -459,8 +488,11 @@ class Openstuck():
 					template['resources'][newkey]= template['resources'].pop(oldkey)
 					del template['resources'][oldkey]
 			newstack = heat.stacks.create(stack_name=stack, template=template)
-			results = 'OK'
 			stacks.append(newstack['stack']['id'])
+			available = o._available(heat.stacks, newstack['stack']['id'], timeout, status='COMPLETE')
+			if not available:
+				raise Exception("Timeout waiting for available status")
+			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Stack')
 			results = str(error)
@@ -804,6 +836,10 @@ class Openstuck():
 		try:
 			heat.stacks.delete(stackid)
 			results = 'OK'
+			deleted = o._stackdeleted(heat.stacks, stackid, timeout)
+			if not deleted:
+				raise Exception("Timeout waiting for deleted status")
+			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Stack')
 			results = str(error)
@@ -1009,7 +1045,7 @@ class Openstuck():
 		network_name = network['name']
 		try:
 			findnetworks = [ net for net in neutron.list_networks()['networks'] if net['id'] == network_id ]
-			if len(findnetworks) == 0:
+			if not findnetworks:
 				raise Exception('Network not found')
 			results = 'OK'
 		except Exception as error:
@@ -1844,8 +1880,6 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
-		if embedded and 'Create_Server' in tests:
-			self._novaafter()
 		return servers
 	def heattest(self):
 		category = 'heat'
@@ -2121,8 +2155,12 @@ if __name__ == "__main__":
 	if testneutron or testall:
 		networks = o.neutrontest()
 	if testnova or testall:
+		if embedded:
+			o._novabefore()
 		servers = o.novatest()
 	if testheat or testall:
+		if o.embedded:
+			o._novabefore()
 		stacks = o.heattest()
 	if testceilometer or testceilometer:
 		alarms = o.ceilometertest()
@@ -2154,4 +2192,9 @@ if __name__ == "__main__":
 			print "Final report:"
 		print o._printreport()
 		if embedded:
+			if testnova or testheat:
+				try:
+					o._novaafter()
+				except:
+					pass
 			o._clean()

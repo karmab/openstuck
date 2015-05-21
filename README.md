@@ -47,7 +47,7 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - OS_CEILOMETER_TESTS    defaults to Create_Alarm, List_Alarm, Delete_Alarm
 - OS_SWIFT_TESTS         defaults to Create_Container, List_Container, Delete_Container
 - OS_GLANCE_IMAGE_PATH   defaults to None
-- OS_HEAT_TEMPLATE       defaults to None ( and will then create a sample one if OS_NOVA_IMAGE, OS_NOVA_FLAVOR and OS_NOVA_NETWORK are defined )
+- OS_HEAT_TEMPLATE       defaults to None ( and will then create a sample one if OS_NOVA_IMAGE, OS_NOVA_FLAVOR and OS_NOVA_NETWORK are defined or custom ones if embedded mode
 - OS_CINDERBACKUP_VOLUME defaults to volume. If specified, it should be an existing volume with a unique name accross all tenants
 - OS_CINDERBACKUP_ID     defaults to None. This is an alternative around the existing limitations of OS_CINDERBACKUP_VOLUME
 - OS_SWIFT_OBJECT_PATH	 defaults to the string  This is openstuck test data
