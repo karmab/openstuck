@@ -43,8 +43,7 @@ __status__     = 'Testing'
 
 keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_Role', 'ListRole', 'Authenticate_User', 'Delete_User', 'Delete_Role', 'Delete_Tenant']
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
-#cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume','Reach_VolumeQuota', 'Reach_StorageQuota']
-cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume','Reach_VolumeQuota']
+cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume','Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network']
 novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_Server', 'List_Server', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
@@ -1363,19 +1362,39 @@ class Openstuck():
                         	o._available(cinder.volumes, newvolume.id, timeout)
 				quotavolumes.append(newvolume)
 			results = 'QuotaNotRespected'
-			errors.append('Reach_VolumeQuota')
+			errors.append('Reach_StorageQuota')
 		except cinderexceptions.OverLimit:
 			results = 'OK'
 		except Exception as error:
-			errors.append('Reach_VolumeQuota')
+			errors.append('Reach_StorageQuota')
 			results = str(error)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
-			print "Reach_VolumeQuota: %s seconds %s" % (runningtime, results )
-			output.append(['cinder', 'Reach_VolumeQuota', 'volumequota', 'volumequota', runningtime, results,])
+			print "Reach_StorageQuota: %s seconds %s" % (runningtime, results )
+			output.append(['cinder', 'Reach_StorageQuota', 'volumequota', 'volumequota', runningtime, results,])
 		return quotavolumes
-
+	def Reach_StorageQuota(self, cinder, errors=None, output=None, verbose=False, timeout=20):
+		quotavolumes = []
+		errors = []
+		starttime = time.time()
+		try:
+			maxstorage = cinder.quotas.get(self.keystone.tenant_id).gigabytes
+			newvolume = cinder.volumes.create(size=maxstorage+1, name='quotastorage')
+                        o._available(cinder.volumes, newvolume.id, timeout)
+			newvolume.delete()
+			results = 'QuotaNotRespected'
+			errors.append('Reach_StorageQuota')
+		except cinderexceptions.OverLimit:
+			results = 'OK'
+		except Exception as error:
+			errors.append('Reach_StorageQuota')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Reach_StorageQuota: %s seconds %s" % (runningtime, results )
+			output.append(['cinder', 'Reach_StorageQuota', 'storagequota', 'storagequota', runningtime, results,])
 	def _printreport(self):
 		return self.output
 	def listservices(self):
@@ -1819,6 +1838,7 @@ class Openstuck():
 		snapshotvolumes = mgr.list()
 		backups         = mgr.list()
 		snapshots       = mgr.list()
+		quotavolumes    = []
 		if self.verbose:
 			print "Testing Cinder..."
 		keystone = self.keystone
@@ -2017,6 +2037,20 @@ class Openstuck():
                 	concurrency, repeat = 1, 1
 			starttime = time.time()
 			quotavolumes = self.Reach_VolumeQuota(cinder)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors=[])
+			self._addrows(verbose, output)
+
+		test    = 'Reach_StorageQuota'
+		if test in tests:
+			output       = []
+			errors       = []
+                	concurrency, repeat = 1, 1
+			starttime = time.time()
+			self.Reach_StorageQuota(cinder)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
