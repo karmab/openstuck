@@ -45,7 +45,8 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_Server', 'List_Server', 'Delete_Server']
+#novadefaulttests         = ['Create_Flavor','Add_FlavorAccess', 'Remove_FlavorAccess', 'List_Flavor', 'Delete_Flavor', 'Create_Server', 'List_Server', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Add_KeyPair', 'List_KeyPair', 'Remove_KeyPair', 'Create_Server', 'List_Server', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -124,6 +125,7 @@ class Openstuck():
         	self.router            = "%srouter" % project
         	self.server            = "%sserver" % project
         	self.flavor            = "%sflavor" % project
+        	self.keypair           = "%skeypair" % project
         	self.stack             = "%sstack" % project
         	self.alarm             = "%salarm" % project
         	self.container         = "%scontainer" % project
@@ -134,12 +136,19 @@ class Openstuck():
 		novaimage	= 'novaimage'
 		novanet		= 'novanet'
 		novasubnet	= 'novasubnet'
+		novakeypair	= 'novakeypair'
+		pubkey='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDYgUh2XWv5EcWsrKq7fcmZLy/V9//MZtRGv+RDYSW0X6TZLOAw2xLTXkmZbKfo9P8DWyCXlptCgB8BuJhORY3dZFxUfcjgM5cbqB+64qlHdr9sxGfb5WDdc+4mpMEMSpfIgPwFda9bXmOimeLV9NaH+TLNCCs7uSig+t3eeDcFNgAbhMo0ffud4h4OHIaYEuPVnlA5lfDkY3qYboDPaqPs3qhbIOf5Q4AoCaxSQGXRUWTDQyQO8NNFiF9dfHTYb8rRW9BXLVCWXpfxyRJZzgGc1GLqmRNPjfY0DMDAD/D6qAxtVjEQYNCm5LiJMGq6BDVejdypKRYAoCU+KCmQ6xWr'
+		#keypair         = nova.keypairs.create(novakeypair, pubkey)
 		imagepath       = self.imagepath
 		keystone        = self.keystone
+		nova            = novaclient.Client('2', **self.novacredentials)
                 glanceendpoint  = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
+		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakeypair]
+		if len(keypairs) != 1:
+			keypair         = nova.keypairs.create(novakeypair, pubkey)
 		images = [ image for image in glance.images.list() if image.name == novaimage]
 		if len(images) != 1:
 			image           = glance.images.create(name=novaimage, visibility='public', disk_format='qcow2',container_format='bare')
@@ -160,6 +169,7 @@ class Openstuck():
 		return 
 	def _novaafter(self):
 		novaimage	= 'novaimage'
+		novakeypair	= 'novakeypair'
 		novanet		= 'novanet'
 		novasubnet	= 'nosubnet'
                 keystone        = self.keystone
@@ -167,6 +177,10 @@ class Openstuck():
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
+		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakeypair]
+		if len(keypairs) == 1:
+			keypair = keypairs[0]
+			keypair.delete()
 		images = [ image for image in glance.images.list() if image.name == novaimage]
 		if len(images) ==1:
         		image   = images[0]
@@ -245,6 +259,21 @@ class Openstuck():
         		if cidr not in cidrs:
                 		break
 		return cidr
+	def Add_FlavorAccess(self, nova, flavor, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		try:
+			#THIS IS BUGGY
+			tenant_id = nova.tenant_id
+			nova.flavor_access.add_tenant_access(flavor, tenant_id)
+			results = 'OK'
+		except Exception as error:
+			errors.append('Add_FlavorAccess')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Add_FlavorAccess: %s %s seconds %s" % (flavor, runningtime, results )
+			output.append(['nova', 'Add_FlavorAccess', flavor, flavor, runningtime, results,])
 	def Add_Role(self, keystone, user, role, tenant, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if tenant is None or user is None:
@@ -393,6 +422,23 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Image: %s %s seconds %s" % (image, runningtime, results )
 			output.append(['glance', 'Create_Image', image, image, runningtime, results,])
+	def Create_KeyPair(self, nova, keypair, keypairs=None, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		try:
+			pubkey='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDYgUh2XWv5EcWsrKq7fcmZLy/V9//MZtRGv+RDYSW0X6TZLOAw2xLTXkmZbKfo9P8DWyCXlptCgB8BuJhORY3dZFxUfcjgM5cbqB+64qlHdr9sxGfb5WDdc+4mpMEMSpfIgPwFda9bXmOimeLV9NaH+TLNCCs7uSig+t3eeDcFNgAbhMo0ffud4h4OHIaYEuPVnlA5lfDkY3qYboDPaqPs3qhbIOf5Q4AoCaxSQGXRUWTDQyQO8NNFiF9dfHTYb8rRW9BXLVCWXpfxyRJZzgGc1GLqmRNPjfY0DMDAD/D6qAxtVjEQYNCm5LiJMGq6BDVejdypKRYAoCU+KCmQ6xWr'
+			newkeypair = nova.keypairs.create(keypair,pubkey)
+			results = 'OK'
+			keypairs.append(newkeypair.id)
+		except Exception as error:
+			errors.append('Create_KeyPair')
+			results = str(error)
+			keypairs.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_KeyPair: %s %s seconds %s" % (keypair, runningtime, results )
+			output.append(['nova', 'Create_KeyPair', keypair, keypair, runningtime, results,])
+
 	def Create_Network(self, neutron, network, networks=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
@@ -816,6 +862,29 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Image: %s %s seconds %s" % (imagename, runningtime, results)
 			output.append(['glance', 'Delete_Image', imagename, imagename, runningtime, results,])
+
+	def Delete_KeyPair(self, nova, keypair, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if keypair is None:
+			errors.append('Delete_KeyPair')
+			results = 'NotRun'
+			if verbose:
+				print "Delete_KeyPair: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Delete_KeyPair', 'N/A', 'N/A', '0', results,])
+			return
+		keypairname = keypair.name
+		try:
+			keypair.delete()
+			results = 'OK'
+		except Exception as error:
+			errors.append('Delete_KeyPair')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_KeyPair: %s %s seconds %s" % (keypairname, runningtime, results)
+			output.append(['nova', 'Delete_KeyPair', keypairname, keypairname, runningtime, results,])			
+
 	def Delete_SecurityGroup(self, neutron, securitygroup, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if securitygroup is None:
@@ -1178,6 +1247,27 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Image: %s %s seconds %s" % (image.name, runningtime, results)
 			output.append(['glance', 'List_Image', image.name, image.name, runningtime, results,])
+	def List_KeyPair(self, nova, keypair, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if keypair is None:
+			results = 'NotRun'
+			errors.append('List_KeyPair')
+			if verbose:
+				print "List_KeyPair: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'List_KeyPair', 'N/A', 'N/A', '0', results,])
+			return
+		try:
+			nova.keypairs.get(keypair.id)
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_KeyPair')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_KeyPair: %s %s seconds %s" % (keypair.name, runningtime, results)
+			output.append(['nova', 'List_KeyPair', keypair.name, keypair.name, runningtime, results,])
+
 	def List_Meter(self, ceilometer, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
@@ -1412,6 +1502,21 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Reach_StorageQuota: %s seconds %s" % (runningtime, results )
 			output.append(['cinder', 'Reach_StorageQuota', 'storagequota', 'storagequota', runningtime, results,])
+	def Remove_FlavorAccess(self, nova, flavor, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		try:
+			#THIS IS BUGGY
+			tenant_id = nova.tenant_id
+			nova.flavor_access.remove_tenant_access(flavor, tenant_id)
+			results = 'OK'
+		except Exception as error:
+			errors.append('Remove_FlavorAccess')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Remove_FlavorAccess: %s %s seconds %s" % (flavor, runningtime, results )
+			output.append(['nova', 'Remove_FlavorAccess', flavor, flavor, runningtime, results,])
 	def Restore_Backup(self, cinder, backup, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		#if volume is None or backup is None:
@@ -1597,10 +1702,26 @@ class Openstuck():
 					neutron.security_groups.delete(securitygroup['id'])
 				except:
 					continue
-	def novaclean(self, servers):
+	def novaclean(self, flavors, keypairs, servers):
 		if self.verbose:
 			print "Cleaning Nova..."
 		nova     = novaclient.Client('2', **self.novacredentials)
+		for flavor in flavors:
+			if flavors is None:
+				continue
+			else:
+				try:
+					nova.flavors.delete(flavor.id)
+				except:
+					continue
+		for keypair in keypairs:
+			if keypair is None:
+				continue
+			else:
+				try:
+					nova.keypairs.delete(keypair.id)
+				except:
+					continue
 		for server in servers:
 			if server is None:
 				continue
@@ -2317,6 +2438,7 @@ class Openstuck():
 		tests     = self.novatests 
 		mgr       = multiprocessing.Manager()
 		errors    = mgr.list()
+		keypairs  = mgr.list()
 		flavors   = mgr.list()
 		servers   = mgr.list()
 		if self.verbose:
@@ -2371,7 +2493,83 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 
+		test    = 'Add_FlavorAccess'
+		reftest = test
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Add_FlavorAccess, args=(nova, flavor, errors, output, self.verbose, timeout, )) for flavor in flavors ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
 	
+		test    = 'Remove_FlavorAccess'
+		reftest = test
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Remove_FlavorAccess, args=(nova, flavor, errors, output, self.verbose, timeout, )) for flavor in flavors ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test    = 'Create_KeyPair'
+		reftest = test
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_KeyPair, args=(nova, "%s-%d-%d" % (self.keypair, step, number), keypairs, errors, output, self.verbose, timeout, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			keypairs = [ nova.keypairs.get(keypair_id) if keypair_id is not None else None for keypair_id in keypairs ]
+
+		test    = 'List_KeyPair'
+		reftest = 'Create_KeyPair'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.List_KeyPair, args=(nova, keypair, errors, output, self.verbose, timeout, )) for keypair in keypairs ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test    = 'Delete_KeyPair'
+		reftest = 'Create_KeyPair'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_KeyPair, args=(nova, keypair, errors, output, self.verbose, timeout, )) for keypair in keypairs ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
 		test    = 'Create_Server'
 		reftest = test
 		if test in tests:
@@ -2418,7 +2616,7 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
-		return servers
+		return flavors, keypairs, servers
 	def heattest(self):
 		category = 'heat'
 		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
@@ -2696,7 +2894,7 @@ if __name__ == "__main__":
 	if testnova or testall:
 		if embedded:
 			o._novabefore()
-		servers = o.novatest()
+		flavors, keypairs, servers = o.novatest()
 	if testheat or testall:
 		if o.embedded:
 			o._novabefore()
@@ -2717,7 +2915,7 @@ if __name__ == "__main__":
 	if testneutron or testall:
 		o.neutronclean(securitygroups, networks, subnets, routers)
 	if testnova or testall:
-		o.novaclean(servers)
+		o.novaclean(flavors, keypairs, servers)
 	if testheat or testall:
 		o.heatclean(stacks)
 	if testceilometer or testceilometer:

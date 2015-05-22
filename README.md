@@ -73,11 +73,13 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - handle specifically known exceptions instead of beeing generic
 - improve Create_Subnet function to be able to create more than 254 networks as we use the current step to establish cidr (optionally dont do steps, and create as many subnets as nets, one subnet per net...)
 - add tenantid in network creation tests
+- create a specific flavor during nova testing instead of hardcoded relying on m1.tiny
 
 
 ##Known bugs
 - Create_Backup race condition giving a "Invalid volume: Volume to be backed up must be available" message
 - Race condition when creating a lot of network giving the error No available network found in maximum allowed attempts .see https://bugzilla.redhat.com/show_bug.cgi?id=1194432. Note its related to concurrency as it doesnt occur when running sequential tests
+- Add_FlavorAccess and Remove_FlavorAccess tests
 
 ##Problems?
 
