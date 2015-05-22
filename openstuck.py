@@ -136,9 +136,8 @@ class Openstuck():
 		novaimage	= 'novaimage'
 		novanet		= 'novanet'
 		novasubnet	= 'novasubnet'
-		novakeypair	= 'novakeypair'
+		novakey	        = 'novakey'
 		pubkey='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDYgUh2XWv5EcWsrKq7fcmZLy/V9//MZtRGv+RDYSW0X6TZLOAw2xLTXkmZbKfo9P8DWyCXlptCgB8BuJhORY3dZFxUfcjgM5cbqB+64qlHdr9sxGfb5WDdc+4mpMEMSpfIgPwFda9bXmOimeLV9NaH+TLNCCs7uSig+t3eeDcFNgAbhMo0ffud4h4OHIaYEuPVnlA5lfDkY3qYboDPaqPs3qhbIOf5Q4AoCaxSQGXRUWTDQyQO8NNFiF9dfHTYb8rRW9BXLVCWXpfxyRJZzgGc1GLqmRNPjfY0DMDAD/D6qAxtVjEQYNCm5LiJMGq6BDVejdypKRYAoCU+KCmQ6xWr'
-		#keypair         = nova.keypairs.create(novakeypair, pubkey)
 		imagepath       = self.imagepath
 		keystone        = self.keystone
 		nova            = novaclient.Client('2', **self.novacredentials)
@@ -146,15 +145,16 @@ class Openstuck():
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
-		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakeypair]
+		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakey]
 		if len(keypairs) != 1:
-			keypair         = nova.keypairs.create(novakeypair, pubkey)
+			keypair = nova.keypairs.create(novakey, pubkey)
 		images = [ image for image in glance.images.list() if image.name == novaimage]
 		if len(images) != 1:
 			image           = glance.images.create(name=novaimage, visibility='public', disk_format='qcow2',container_format='bare')
 			if imagepath is not None:
 				with open(imagepath,'rb') as data:
 					glance.images.upload(image.id, data)
+					print "KARIMBO"
 		novanets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == novanet ]
 		if not novanets:
 			network         = {'name': novanet, 'admin_state_up': True}
@@ -169,7 +169,7 @@ class Openstuck():
 		return 
 	def _novaafter(self):
 		novaimage	= 'novaimage'
-		novakeypair	= 'novakeypair'
+		novakey	        = 'novakey'
 		novanet		= 'novanet'
 		novasubnet	= 'nosubnet'
                 keystone        = self.keystone
@@ -177,7 +177,7 @@ class Openstuck():
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
-		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakeypair]
+		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakey]
 		if len(keypairs) == 1:
 			keypair = keypairs[0]
 			keypair.delete()
@@ -516,20 +516,23 @@ class Openstuck():
 		starttime = time.time()
 		try:
 			if not embedded:
-				image     = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
-				image     = nova.images.find(name=image)
-				network   = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
-				networkid = nova.networks.find(label=network).id
+				keypairname = None
+				image       = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
+				image       = nova.images.find(name=image)
+				network     = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+				networkid   = nova.networks.find(label=network).id
 			else:
-				image     = nova.images.find(name='novaimage')
-				networkid = nova.networks.find(label='novanet').id
+				keypairname = nova.keypairs.find(name='novakey').name
+				image       = nova.images.find(name='novaimage')
+				networkid   = nova.networks.find(label='novanet').id
 			flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
 			flavor  = nova.flavors.find(name=flavor)
 			nics = [{'net-id': networkid}]
-			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics)
+			#newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics)
+			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics, key_name=keypairname)
                         active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
                         if not active:
-                                raise Exception("Timeout waiting for ACTIVE status")
+                                raise Exception("Timeout waiting for active status")
 			results = 'OK'
 			servers.append(newserver.id)
 		except Exception as error:
