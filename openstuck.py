@@ -43,7 +43,7 @@ __status__     = 'Testing'
 
 keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_Role', 'ListRole', 'Authenticate_User', 'Delete_User', 'Delete_Role', 'Delete_Tenant']
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
-cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume','Reach_VolumeQuota', 'Reach_StorageQuota']
+cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
 novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_Server', 'List_Server', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
@@ -1412,6 +1412,32 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Reach_StorageQuota: %s seconds %s" % (runningtime, results )
 			output.append(['cinder', 'Reach_StorageQuota', 'storagequota', 'storagequota', runningtime, results,])
+	def Restore_Backup(self, cinder, backup, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		#if volume is None or backup is None:
+		#	errors.append('Create_Restore')
+		#	results = 'NotRun'
+		#	if verbose:
+		#		print "Create_Restore: %s 0 seconds" % 'N/A'
+		#		output.append(['cinder', 'Create_Restore', 'N/A', 'N/A', '0', results,])
+		#	return
+		try:
+			backup_id   = backup.id
+			backup_name = backup.name
+			#volume_id   = volume.id
+			cinder.restores.restore(backup_id)
+                        available = o._available(cinder.backups, backup.id, timeout)
+                        if not available:
+                                raise Exception("Timeout waiting for available status")
+			results = 'OK'
+		except Exception as error:
+			errors.append('Restore_Backup')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Restore_Backup: %s %s seconds %s" % (backup_name, runningtime, results )
+			output.append(['cinder', 'Restore_Backup', backup_name, backup_name, runningtime, results,])	
 	def _printreport(self):
 		return self.output
 	def listservices(self):
@@ -2017,6 +2043,21 @@ class Openstuck():
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
 			jobs = [ multiprocessing.Process(target=self.Delete_Snapshot, args=(cinder, snapshot, errors, output, self.verbose, timeout, )) for snapshot in snapshots ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test    = 'Restore_Backup'
+		reftest = 'Create_Volume'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Restore_Backup, args=(cinder, backup, errors, output, self.verbose, timeout, )) for backup in backups ]
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
