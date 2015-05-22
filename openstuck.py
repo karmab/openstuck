@@ -45,8 +45,7 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-#novadefaulttests         = ['Create_Flavor','Add_FlavorAccess', 'Remove_FlavorAccess', 'List_Flavor', 'Delete_Flavor', 'Create_Server', 'List_Server', 'Delete_Server']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Add_KeyPair', 'List_KeyPair', 'Remove_KeyPair', 'Create_Server', 'List_Server', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Add_KeyPair', 'List_KeyPair', 'Remove_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Metadata', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -77,7 +76,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=20, embedded=True, externalid=None):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=60, embedded=True, externalid=None):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -89,10 +88,12 @@ class Openstuck():
 		try:
 			self.keystone = keystoneclient.Client(**keystonecredentials)
 			if embedded:
-				self.keystone.tenants.create(tenant_name=project, enabled=True)
+				embeddedtenant = self.keystone.tenants.create(tenant_name=project, enabled=True)
 				self.auth_tenant_name = project
+				self.auth_tenant_id   = embeddedtenant.id
 			else:
 				self.auth_tenant_name = keystonecredentials['tenant_name']
+				self.auth_tenant_id = self.keystone.tenant_id
 			
 		except Exception as e:
 			print "Got the following issue: %s" % str(e) 
@@ -132,10 +133,12 @@ class Openstuck():
 		self.debug            = debug
 		self.verbose          = verbose
 		self.timeout          = timeout
-	def _novabefore(self):
+	def _novabefore(self, externalid):
+		tenantid        = self.auth_tenant_id
 		novaimage	= 'novaimage'
 		novanet		= 'novanet'
 		novasubnet	= 'novasubnet'
+		novarouter	= 'novarouter'
 		novakey	        = 'novakey'
 		pubkey='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDYgUh2XWv5EcWsrKq7fcmZLy/V9//MZtRGv+RDYSW0X6TZLOAw2xLTXkmZbKfo9P8DWyCXlptCgB8BuJhORY3dZFxUfcjgM5cbqB+64qlHdr9sxGfb5WDdc+4mpMEMSpfIgPwFda9bXmOimeLV9NaH+TLNCCs7uSig+t3eeDcFNgAbhMo0ffud4h4OHIaYEuPVnlA5lfDkY3qYboDPaqPs3qhbIOf5Q4AoCaxSQGXRUWTDQyQO8NNFiF9dfHTYb8rRW9BXLVCWXpfxyRJZzgGc1GLqmRNPjfY0DMDAD/D6qAxtVjEQYNCm5LiJMGq6BDVejdypKRYAoCU+KCmQ6xWr'
 		imagepath       = self.imagepath
@@ -151,51 +154,66 @@ class Openstuck():
 		images = [ image for image in glance.images.list() if image.name == novaimage]
 		if len(images) != 1:
 			image           = glance.images.create(name=novaimage, visibility='public', disk_format='qcow2',container_format='bare')
-			if imagepath is not None:
-				with open(imagepath,'rb') as data:
-					glance.images.upload(image.id, data)
-					print "KARIMBO"
+			with open(imagepath,'rb') as data:
+				glance.images.upload(image.id, data)
 		novanets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == novanet ]
 		if not novanets:
-			network         = {'name': novanet, 'admin_state_up': True}
+			network         = {'name': novanet, 'admin_state_up': True, 'tenant_id': tenantid}
 			network         = neutron.create_network({'network':network})
 			networkid       = network['network']['id']
 		else:
 			networkid  = novanets[0]['id']
 		novasubnets     = [ n for n in neutron.list_subnets()['subnets'] if n['name'] == novasubnet ]
 		if not novasubnets:
-			subnet          = {'name':novasubnet, 'network_id':networkid,'ip_version':4,"cidr":'10.0.0.0/24'}
+			subnet          = {'name':novasubnet, 'network_id':networkid,'ip_version':4,"cidr":'10.0.0.0/24', 'tenant_id': tenantid}
 			subnet          = neutron.create_subnet({'subnet':subnet})
+			subnetid        = subnet['subnet']['id']
+		novarouters     = [ r for r in neutron.list_routers()['routers'] if n['name'] == novarouter ]
+		if not novarouters:
+			router          = {'name':novarouter, 'tenant_id': tenantid}
+			if externalid is not None:
+			        router['external_gateway_info']= {"network_id": externalid, "enable_snat": True}
+			router    = neutron.create_router({'router':router})
+			routerid  = router['router']['id']
+			neutron.add_interface_router(routerid,{'subnet_id':subnetid } )
 		return 
 	def _novaafter(self):
 		novaimage	= 'novaimage'
 		novakey	        = 'novakey'
 		novanet		= 'novanet'
-		novasubnet	= 'nosubnet'
+		novasubnet	= 'novasubnet'
+		novarouter	= 'novarouter'
                 keystone        = self.keystone
                 glanceendpoint  = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
+		nova            = novaclient.Client('2', **self.novacredentials)
 		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakey]
 		if len(keypairs) == 1:
 			keypair = keypairs[0]
 			keypair.delete()
 		images = [ image for image in glance.images.list() if image.name == novaimage]
-		if len(images) ==1:
-        		image   = images[0]
+		for image in images:
        	 		imageid = image.id
-		glance.images.delete(imageid)
-		networks = [ network for network in neutron.list_networks()['networks'] if network['name'] == novanet]
-		if len(networks) ==1:
-        		network   = networks[0]
-        		networkid = network['id']
+			glance.images.delete(imageid)
+		routers = [ router for router in neutron.list_routers()['routers'] if router['name'] == novarouter]
+		for router in routers:
+        		routerid = router['id']
+                        if router['external_gateway_info']:
+                        	neutron.remove_gateway_router(routerid)
+                        ports = [ p for p in neutron.list_ports()['ports'] if p['device_id'] == routerid ]
+                        for port in ports:
+				portid = port['id']
+                                neutron.remove_interface_router(routerid, {'port_id':portid})
+			neutron.delete_router(routerid)
 		subnets = [ subnet for subnet in neutron.list_subnets()['subnets'] if subnet['name'] == novasubnet]
-		if len(subnets) ==1:
-        		subnet   = subnets[0]
+		for subnet in subnets:
         		subnetid = subnet['id']
 			neutron.delete_subnet(subnetid)
-		if len(networks) ==1:
+		networks = [ network for network in neutron.list_networks()['networks'] if network['name'] == novanet]
+		for network in networks:
+        		networkid = network['id']
 			neutron.delete_network(networkid)
 	def _clean(self):
 		if self.embedded:
@@ -223,7 +241,21 @@ class Openstuck():
 			self.output.add_row([category, test, concurrency, repeat,time, 'OK'])
 	def _available(self, manager, objectid, timeout, status='available'):
 		timein = 0
-		while manager.get(objectid).status != status:
+		newstatus = manager.get(objectid).status
+		while newstatus != status:
+			timein += 0.2
+			if timein > timeout or newstatus == 'ERROR':
+				return False
+			time.sleep(0.2)
+			newstatus = manager.get(objectid).status
+		return True
+	def _searchlog(self, server,search, timeout):
+		print "2" +str(timeout)
+		timein = 0
+		while True:
+			log = server.get_console_output()
+			if search in log:
+        			break
 			timein += 0.2
 			if timein > timeout:
 				return False
@@ -315,6 +347,76 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Authenticate_User: %s in %s %s seconds %s" % (user.name, tenant.name, runningtime, results)
 			output.append(['keystone', 'Authenticate_User', user.name, user.name, runningtime, results,])
+
+	def Check_Console(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if server is None:
+			errors.append('Check_Console')
+			results = 'NotRun'
+			if verbose:
+				print "Check_Console: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Check_Console', 'N/A', 'N/A', '0', results,])
+			return
+		servername = server.name
+		try:
+			console = server.get_console_output()
+			results = 'OK'
+		except Exception as error:
+			errors.append('Check_Console')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Check_Console: %s %s seconds %s" % (servername, runningtime, results)
+			output.append(['nova', 'Check_Console', servername, servername, runningtime, results,])
+
+	def Check_Novnc(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if server is None:
+			errors.append('Check_Novnc')
+			results = 'NotRun'
+			if verbose:
+				print "Check_Novnc: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Check_Novnc', 'N/A', 'N/A', '0', results,])
+			return
+		servername = server.name
+		try:
+			console = server.get_console_output()
+			results = 'OK'
+		except Exception as error:
+			errors.append('Check_Novnc')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Check_Novnc: %s %s seconds %s" % (servername, runningtime, results)
+			output.append(['nova', 'Check_Novnc', servername, servername, runningtime, results,])
+
+	def Check_Metadata(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+		print "1"+str(timeout)
+		starttime = time.time()
+		if server is None:
+			errors.append('Check_Metadata')
+			results = 'NotRun'
+			if verbose:
+				print "Check_Metadata: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Check_Metadata', 'N/A', 'N/A', '0', results,])
+			return
+		servername = server.name
+		try:
+                        found = o._searchlog(server,'METADATA',timeout)
+                        if not found:
+                                raise Exception("Timeout waiting for metadata")
+			results = 'OK'
+		except Exception as error:
+			errors.append('Check_Metadata')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Check_Metadata: %s %s seconds %s" % (servername, runningtime, results)
+			output.append(['nova', 'Check_Metadata', servername, servername, runningtime, results,])
+
 	def Create_Alarm(self, ceilometer, alarm, alarms=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
@@ -407,10 +509,14 @@ class Openstuck():
 	def Create_Image(self, glance, image, imagepath, images=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
+			if imagepath is None:
+				raise Exception('Missing OS_GLANCE_IMAGE_PATH environment variable')
 			newimage = glance.images.create(name=image, visibility='public', disk_format='qcow2',container_format='bare')
-			if imagepath is not None:
-				with open(imagepath,'rb') as data:
-                        		glance.images.upload(newimage.id, data)
+			with open(imagepath,'rb') as data:
+				glance.images.upload(newimage.id, data)
+			available = o._available(glance.images, newimage.id, timeout,status='active')
+			if not available:
+				raise Exception("Timeout waiting for available status")
 			results = 'OK'
 			images.append(newimage.id)
 		except Exception as error:
@@ -528,13 +634,15 @@ class Openstuck():
 			flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
 			flavor  = nova.flavors.find(name=flavor)
 			nics = [{'net-id': networkid}]
+			userdata = "#!/bin/bash\necho METADATA >/dev/ttyS0"
 			#newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics)
-			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics, key_name=keypairname)
+			#newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics, key_name=keypairname)
+			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
+			servers.append(newserver.id)
                         active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
                         if not active:
                                 raise Exception("Timeout waiting for active status")
 			results = 'OK'
-			servers.append(newserver.id)
 		except Exception as error:
 			print type(error)
 			errors.append('Create_Server')
@@ -2605,6 +2713,51 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 
+		test    = 'Check_Console'
+		reftest = 'Create_Server'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Check_Console, args=(nova, server, errors, output, self.verbose, timeout, )) for server in servers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test    = 'Check_Novnc'
+		reftest = 'Create_Server'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Check_Novnc, args=(nova, server, errors, output, self.verbose, timeout, )) for server in servers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test    = 'Check_Metadata'
+		reftest = 'Create_Server'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Check_Metadata, args=(nova, server, errors, output, self.verbose, timeout, )) for server in servers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
 		test    = 'Delete_Server'
 		reftest = 'Create_Server'
 		if test in tests:
@@ -2896,11 +3049,14 @@ if __name__ == "__main__":
 		securitygroups, networks, subnets, routers = o.neutrontest()
 	if testnova or testall:
 		if embedded:
-			o._novabefore()
+			if imagepath is None:
+				print "Missing OS_GLANCE_IMAGE_PATH environment variable"
+				sys.exit(1)
+			o._novabefore(externalid)
 		flavors, keypairs, servers = o.novatest()
 	if testheat or testall:
 		if o.embedded:
-			o._novabefore()
+			o._novabefore(externalid)
 		stacks = o.heattest()
 	if testceilometer or testceilometer:
 		alarms = o.ceilometertest()
@@ -2931,10 +3087,7 @@ if __name__ == "__main__":
 			print "Testing Keystone..."
 			print "Final report:"
 		print o._printreport()
-		if embedded:
+		if embedded:	
 			if testnova or testheat:
-				try:
-					o._novaafter()
-				except:
-					pass
+				o._novaafter()
 			o._clean()

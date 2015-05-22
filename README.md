@@ -74,7 +74,7 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - improve Create_Subnet function to be able to create more than 254 networks as we use the current step to establish cidr (optionally dont do steps, and create as many subnets as nets, one subnet per net...)
 - add tenantid in network creation tests
 - create a specific flavor during nova testing instead of hardcoded relying on m1.tiny
-
+- run the Check_Console later so it can provide a more interesting output (typically check that hostname of the vm shows up there)
 
 ##Known bugs
 - Create_Backup race condition giving a "Invalid volume: Volume to be backed up must be available" message
