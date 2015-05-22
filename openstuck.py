@@ -44,7 +44,7 @@ __status__     = 'Testing'
 keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_Role', 'ListRole', 'Authenticate_User', 'Delete_User', 'Delete_Role', 'Delete_Tenant']
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Delete_Volume','Reach_VolumeQuota', 'Reach_StorageQuota']
-neutrondefaulttests      = ['Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network']
+neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
 novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_Server', 'List_Server', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
@@ -118,6 +118,7 @@ class Openstuck():
 		self.imagepath         = imagepath
         	self.volume            = "%svolume" % project
         	self.volumetype        = volumetype
+        	self.securitygroup     = "%ssecuritygroup" % project
         	self.network           = "%snetwork" % project
         	self.subnet            = "%ssubnet" % project
         	self.router            = "%srouter" % project
@@ -449,6 +450,22 @@ class Openstuck():
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Router: %s %s seconds %s" % (router, runningtime, results )
+	def Create_SecurityGroup(self, neutron, securitygroup, securitygroups=None, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		try:
+			newsecuritygroup = {'name': securitygroup}
+			newsecuritygroup = neutron.create_security_group({'security_group':newsecuritygroup})
+			results = 'OK'
+			securitygroups.append(newsecuritygroup['security_group']['id'])
+		except Exception as error:
+			errors.append('Create_SecurityGroup')
+			results = str(error)
+			securitygroups.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_SecurityGroup: %s %s seconds %s" % (securitygroup, runningtime, results )
+			output.append(['neutron', 'Create_SecurityGroup', securitygroup, securitygroup, runningtime, results,])
 	def Create_Server(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
@@ -799,28 +816,28 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Image: %s %s seconds %s" % (imagename, runningtime, results)
 			output.append(['glance', 'Delete_Image', imagename, imagename, runningtime, results,])
-	def Delete_Network(self, neutron, network, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_SecurityGroup(self, neutron, securitygroup, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
-		if network is None:
-			errors.append('Delete_Network')
+		if securitygroup is None:
+			errors.append('Delete_SecurityGroup')
 			results = 'NotRun'
 			if verbose:
-				print "Delete_Network: %s 0 seconds" % 'N/A'
-				output.append(['neutron', 'Delete_Network', 'N/A', 'N/A', '0', results,])
+				print "Delete_SecurityGroup: %s 0 seconds" % 'N/A'
+				output.append(['neutron', 'Delete_SecurityGroup', 'N/A', 'N/A', '0', results,])
 			return
-		networkname = network['name']
-		networkid   = network['id']
+		securitygroupname = securitygroup['name']
+		securitygroupid   = securitygroup['id']
 		try:
-			neutron.delete_network(networkid)
+			neutron.delete_security_group(securitygroupid)
 			results = 'OK'
 		except Exception as error:
-			errors.append('Delete_Network')
+			errors.append('Delete_SecurityGroup')
 			results = str(error)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			print "Delete_Network: %s %s seconds %s" % (networkname, runningtime, results)
-			output.append(['neutron', 'Delete_Network', networkname, networkname, runningtime, results,])
+			print "Delete_SecurityGroup: %s %s seconds %s" % (securitygroupname, runningtime, results)
+			output.append(['neutron', 'Delete_SecurityGroup', securitygroupname, securitygroupname, runningtime, results,])
 	def Delete_Role(self, keystone, role, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if role is None:
@@ -1508,7 +1525,7 @@ class Openstuck():
 				except:
 					continue
 
-	def neutronclean(self, networks, subnets, routers):
+	def neutronclean(self, securitygroups, networks, subnets, routers):
 		if self.verbose:
 			print "Cleaning Neutron..."
 		keystone = self.keystone
@@ -1544,6 +1561,14 @@ class Openstuck():
 			else:
 				try:
 					neutron.networks.delete(network['id'])
+				except:
+					continue
+		for securitygroup in securitygroups:
+			if securitygroup is None:
+				continue
+			else:
+				try:
+					neutron.security_groups.delete(securitygroup['id'])
 				except:
 					continue
 	def novaclean(self, servers):
@@ -2059,19 +2084,37 @@ class Openstuck():
 			self._addrows(verbose, output)
 		return volumes, snapshotvolumes, backups, snapshots, quotavolumes
 	def neutrontest(self):
-		category = 'neutron'
-		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
-		tests    = self.neutrontests 
-		mgr      = multiprocessing.Manager()
-		errors   = mgr.list()
-		networks = mgr.list()
-		subnets  = mgr.list()
-		routers  = mgr.list()
+		category       = 'neutron'
+		timeout        = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
+		tests          = self.neutrontests 
+		mgr            = multiprocessing.Manager()
+		errors         = mgr.list()
+		securitygroups = mgr.list()
+		networks       = mgr.list()
+		subnets        = mgr.list()
+		routers        = mgr.list()
 		if self.verbose:
 			print "Testing Neutron..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
 		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token)
+
+		test    = 'Create_SecurityGroup'
+		reftest = test
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_SecurityGroup, args=(neutron, "%s-%d-%d" % (self.securitygroup, step, number), securitygroups, errors, output, self.verbose, timeout, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			securitygroups = [ securitygroup if securitygroup is not None else None for securitygroup in neutron.list_security_groups()['security_groups'] if securitygroup['id'] in securitygroups ]
 
 		test    = 'Create_Network'
 		reftest = test
@@ -2212,7 +2255,21 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 
-		return networks, subnets, routers
+		test    = 'Delete_SecurityGroup'
+		reftest = 'Create_SecurityGroup'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Delete_SecurityGroup, args=(neutron, securitygroup, errors, output, self.verbose, timeout, )) for securitygroup in securitygroups ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+
+		return securitygroups, networks, subnets, routers
 	def novatest(self):
 		category  = 'nova'
 		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
@@ -2594,7 +2651,7 @@ if __name__ == "__main__":
 	if testcinder or testall:
 		volumes, snapshotvolumes, backups, snapshots, quotavolumes = o.cindertest()
 	if testneutron or testall:
-		networks, subnets, routers = o.neutrontest()
+		securitygroups, networks, subnets, routers = o.neutrontest()
 	if testnova or testall:
 		if embedded:
 			o._novabefore()
@@ -2617,7 +2674,7 @@ if __name__ == "__main__":
 	if testcinder or testall:
 		o.cinderclean(volumes, snapshotvolumes, backups, snapshots, quotavolumes)
 	if testneutron or testall:
-		o.neutronclean(networks, subnets, routers)
+		o.neutronclean(securitygroups, networks, subnets, routers)
 	if testnova or testall:
 		o.novaclean(servers)
 	if testheat or testall:
