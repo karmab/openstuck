@@ -11,8 +11,10 @@ import os
 from prettytable import PrettyTable
 import random
 import sys
+import StringIO
 import time
 import yaml
+import paramiko
 import cinderclient.exceptions as cinderexceptions
 import novaclient.exceptions   as novaexceptions
 from keystoneclient.openstack.common.apiclient.exceptions   import NotFound               as keystone_notfound
@@ -45,7 +47,7 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Metadata', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Metadata', 'Check_SSH', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -76,7 +78,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalid=None):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalid=None, clouduser='root'):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -142,6 +144,14 @@ class Openstuck():
 		self.debug            = debug
 		self.verbose          = verbose
 		self.timeout          = timeout
+		self.clouduser        = clouduser
+	def _getfloatingip(self, server):
+		for net in server.addresses:
+        		for info in server.addresses[net]:
+                		if info["OS-EXT-IPS:type"] == 'floating':
+                        		return info['addr']
+		return None
+
 	def _novabefore(self, externalid):
 		tenantid        = self.auth_tenant_id
 		novaimage	= 'novaimage'
@@ -149,7 +159,6 @@ class Openstuck():
 		novasubnet	= 'novasubnet'
 		novarouter	= 'novarouter'
 		novakey	        = 'novakey'
-		pubkey='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDYgUh2XWv5EcWsrKq7fcmZLy/V9//MZtRGv+RDYSW0X6TZLOAw2xLTXkmZbKfo9P8DWyCXlptCgB8BuJhORY3dZFxUfcjgM5cbqB+64qlHdr9sxGfb5WDdc+4mpMEMSpfIgPwFda9bXmOimeLV9NaH+TLNCCs7uSig+t3eeDcFNgAbhMo0ffud4h4OHIaYEuPVnlA5lfDkY3qYboDPaqPs3qhbIOf5Q4AoCaxSQGXRUWTDQyQO8NNFiF9dfHTYb8rRW9BXLVCWXpfxyRJZzgGc1GLqmRNPjfY0DMDAD/D6qAxtVjEQYNCm5LiJMGq6BDVejdypKRYAoCU+KCmQ6xWr'
 		imagepath       = self.imagepath
 		keystone        = self.keystone
 		nova            = novaclient.Client('2', **self.novacredentials)
@@ -159,7 +168,8 @@ class Openstuck():
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
 		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakey]
 		if len(keypairs) != 1:
-			keypair = nova.keypairs.create(novakey, pubkey)
+			keypair = nova.keypairs.create(novakey)
+			self.private_key = keypair.private_key
 		images = [ image for image in glance.images.list() if image.name == novaimage]
 		if len(images) != 1:
 			image           = glance.images.create(name=novaimage, visibility='private', disk_format='qcow2',container_format='bare')
@@ -317,6 +327,34 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Add_FlavorAccess: %s %s seconds %s" % (flavor, runningtime, results )
 			output.append(['nova', 'Add_FlavorAccess', flavor, flavor, runningtime, results,])
+
+	def Add_FloatingIp(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if server is None:
+			errors.append('Add_FloatingIP')
+			results = 'NotRun'
+			if verbose:
+				print "Add_FloatingIP: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Add_FloatingIP', 'N/A', 'N/A', '0', results,])
+			return
+		servername = server.name
+		try:
+			floating_ips = nova.floating_ips.list()
+			if not floating_ips:
+				floating_ip = nova.floating_ips.create()
+			else:
+				floating_ip = floating_ip[0]
+			nova.add_floating_ip(floatingip)
+			print floatingip
+			results = 'OK'
+		except Exception as error:
+			errors.append('Add_FloatingIP')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Add_FloatingIP: %s %s seconds %s" % (servername, runningtime, results)
+
 	def Add_Role(self, keystone, user, role, tenant, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if tenant is None or user is None:
@@ -427,6 +465,34 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Check_Metadata: %s %s seconds %s" % (servername, runningtime, results)
 			output.append(['nova', 'Check_Metadata', servername, servername, runningtime, results,])
+
+	def Check_SSH(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if server is None:
+			errors.append('Check_SSH')
+			results = 'NotRun'
+			if verbose:
+				print "Check_SSH: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Check_SSH', 'N/A', 'N/A', '0', results,])
+			return
+		servername = server.name
+		try:
+			floatingip = o._getfloatingip(server)
+			privatekeyfile = StringIO.StringIO(self.private_key)
+			pkey = paramiko.RSAKey.from_private_key(privatekeyfile)
+			cmd='ls'
+			ssh = paramiko.SSHClient()
+			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+			ssh.connect(floatingip, username=self.clouduser, pkey=pkey)
+			ssh.exec_command(cmd)
+			results = 'OK'
+		except Exception as error:
+			errors.append('Check_SSH')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Check_SSH: %s %s seconds %s" % (servername, runningtime, results)
 
 	def Create_Alarm(self, ceilometer, alarm, alarms=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
@@ -542,8 +608,7 @@ class Openstuck():
 	def Create_KeyPair(self, nova, keypair, keypairs=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
-			pubkey='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDYgUh2XWv5EcWsrKq7fcmZLy/V9//MZtRGv+RDYSW0X6TZLOAw2xLTXkmZbKfo9P8DWyCXlptCgB8BuJhORY3dZFxUfcjgM5cbqB+64qlHdr9sxGfb5WDdc+4mpMEMSpfIgPwFda9bXmOimeLV9NaH+TLNCCs7uSig+t3eeDcFNgAbhMo0ffud4h4OHIaYEuPVnlA5lfDkY3qYboDPaqPs3qhbIOf5Q4AoCaxSQGXRUWTDQyQO8NNFiF9dfHTYb8rRW9BXLVCWXpfxyRJZzgGc1GLqmRNPjfY0DMDAD/D6qAxtVjEQYNCm5LiJMGq6BDVejdypKRYAoCU+KCmQ6xWr'
-			newkeypair = nova.keypairs.create(keypair,pubkey)
+			newkeypair = nova.keypairs.create(keypair)
 			results = 'OK'
 			keypairs.append(newkeypair.id)
 		except Exception as error:
@@ -2794,6 +2859,21 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 
+		test    = 'Check_SSH'
+		reftest = 'Create_Server'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Check_SSH, args=(nova, server, errors, output, self.verbose, timeout, )) for server in servers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
 		test    = 'Delete_Server'
 		reftest = 'Create_Server'
 		if test in tests:
@@ -3028,8 +3108,9 @@ if __name__ == "__main__":
 	testinggroup.add_option('-S', '--swift', dest='testswift', action='store_true',default=False, help='Test swift')
 	testinggroup.add_option('-X', '--ceilometer', dest='testceilometer', action='store_true',default=False, help='Test ceilometer')
 	parser.add_option_group(testinggroup)
-	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. defaults to acme')
+	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. Defaults to acme')
 	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] and 80 if not found')
+	parser.add_option('-u', '--clouduser', dest='clouduser', default='root', type='string', help='User to SSH test. Defaults to root')
 	parser.add_option('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Verbose mode. Defaults to False')
 	parser.add_option('-e', '--embedded', dest='embedded', default=True, action='store_true', help='Create a dedicated tenant to hold all tests. Defaults to True')
 	(options, args)  = parser.parse_args()
@@ -3046,6 +3127,7 @@ if __name__ == "__main__":
 	testall          = options.testall
 	project          = options.project
 	verbose          = options.verbose
+	clouduser        = options.clouduser
 	timeout          = options.timeout
 	embedded         = options.embedded
 	try:
@@ -3070,7 +3152,7 @@ if __name__ == "__main__":
 	    	os._exit(1)
 	if listservices:
 		embedded = False
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose, timeout=timeout, embedded=embedded, externalid=externalid)
+	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose, timeout=timeout, embedded=embedded, externalid=externalid, clouduser=clouduser)
 	#testing
 	if listservices:
 		if o.admin:
