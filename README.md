@@ -80,6 +80,7 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - Create_Backup race condition giving a "Invalid volume: Volume to be backed up must be available" message
 - Race condition when creating a lot of network giving the error No available network found in maximum allowed attempts .see https://bugzilla.redhat.com/show_bug.cgi?id=1194432. Note its related to concurrency as it doesnt occur when running sequential tests
 - Add_FlavorAccess and Remove_FlavorAccess tests seem to be bugy
+- When testing on juno, it is not possible for an user to create public images, ( can be worked aroune editing /etc/glance/policy.json), so we switch to private images 
 
 ##Problems?
 

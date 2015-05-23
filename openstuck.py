@@ -76,7 +76,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=60, embedded=True, externalid=None):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalid=None):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -87,8 +87,17 @@ class Openstuck():
 		self.externalid	      = externalid
 		try:
 			self.keystone = keystoneclient.Client(**keystonecredentials)
-			if embedded:
+			try:
+				user       = self.keystone.users.find(id=self.keystone.user_id)
+				roles      = user.list_roles(self.keystone.tenant_id)
+				adminroles = [ role for role in roles if role.name == 'admin' ]
+				adminrole  = adminroles[0]
+				self.admin = True
+			except:
+				self.admin = False
+			if embedded and self.admin:
 				embeddedtenant = self.keystone.tenants.create(tenant_name=project, enabled=True)
+				self.keystone.roles.add_user_role(user, adminrole, embeddedtenant)
 				self.auth_tenant_name = project
 				self.auth_tenant_id   = embeddedtenant.id
 			else:
@@ -153,7 +162,7 @@ class Openstuck():
 			keypair = nova.keypairs.create(novakey, pubkey)
 		images = [ image for image in glance.images.list() if image.name == novaimage]
 		if len(images) != 1:
-			image           = glance.images.create(name=novaimage, visibility='public', disk_format='qcow2',container_format='bare')
+			image           = glance.images.create(name=novaimage, visibility='private', disk_format='qcow2',container_format='bare')
 			with open(imagepath,'rb') as data:
 				glance.images.upload(image.id, data)
 			available = o._available(glance.images, image.id, timeout,status='active')
@@ -219,7 +228,7 @@ class Openstuck():
         		networkid = network['id']
 			neutron.delete_network(networkid)
 	def _clean(self):
-		if self.embedded:
+		if self.embedded and self.admin:
 			tenant = self.keystone.tenants.find(name=self.auth_tenant_name)
 			tenant.delete()
 	def _first(self, elements):
@@ -513,7 +522,7 @@ class Openstuck():
 		try:
 			if imagepath is None:
 				raise Exception('Missing OS_GLANCE_IMAGE_PATH environment variable')
-			newimage = glance.images.create(name=image, visibility='public', disk_format='qcow2',container_format='bare')
+			newimage = glance.images.create(name=image, visibility='private', disk_format='qcow2',container_format='bare')
 			with open(imagepath,'rb') as data:
 				glance.images.upload(newimage.id, data)
 			available = o._available(glance.images, newimage.id, timeout,status='active')
@@ -998,6 +1007,28 @@ class Openstuck():
 			print "Delete_KeyPair: %s %s seconds %s" % (keypairname, runningtime, results)
 			output.append(['nova', 'Delete_KeyPair', keypairname, keypairname, runningtime, results,])			
 
+	def Delete_Network(self, neutron, network, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if network is None:
+			errors.append('Delete_Network')
+			results = 'NotRun'
+			if verbose:
+				print "Delete_Network: %s 0 seconds" % 'N/A'
+				output.append(['neutron', 'Delete_Network', 'N/A', 'N/A', '0', results,])
+			return
+		networkname = network['name']
+		networkid   = network['id']
+		try:
+			neutron.delete_network(networkid)
+			results = 'OK'
+		except Exception as error:
+			errors.append('Delete_Network')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Delete_Network: %s %s seconds %s" % (networkname, runningtime, results)
+
 	def Delete_SecurityGroup(self, neutron, securitygroup, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if securitygroup is None:
@@ -1024,6 +1055,7 @@ class Openstuck():
 		starttime = time.time()
 		if role is None:
 			results = 'NotRun'
+			errors.append('Delete_Role')
 			if verbose:
 				print "Delete_Role: %s 0 seconds" % 'N/A'
 				output.append(['keystone', 'Delete_Role', 'N/A', 'N/A', '0', results,])
@@ -1146,6 +1178,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Stack: %s %s seconds %s" % (stackname, runningtime, results)
 			output.append(['heat', 'Delete_Stack', stackname, stackname, runningtime, results,])
+
 	def Delete_Subnet(self, neutron, subnet, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if subnet is None:
@@ -1167,6 +1200,7 @@ class Openstuck():
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Subnet: %s %s seconds %s" % (subnetname, runningtime, results)
+
 	def Delete_Tenant(self, keystone, tenant, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if tenant is None:
@@ -2995,7 +3029,7 @@ if __name__ == "__main__":
 	testinggroup.add_option('-X', '--ceilometer', dest='testceilometer', action='store_true',default=False, help='Test ceilometer')
 	parser.add_option_group(testinggroup)
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. defaults to acme')
-	parser.add_option('-t', '--timeout', dest='timeout', default=20, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] and 20 if not found')
+	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] and 80 if not found')
 	parser.add_option('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Verbose mode. Defaults to False')
 	parser.add_option('-e', '--embedded', dest='embedded', default=True, action='store_true', help='Create a dedicated tenant to hold all tests. Defaults to True')
 	(options, args)  = parser.parse_args()
@@ -3039,7 +3073,10 @@ if __name__ == "__main__":
 	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose, timeout=timeout, embedded=embedded, externalid=externalid)
 	#testing
 	if listservices:
-		print o.listservices()
+		if o.admin:
+			print o.listservices()
+		else:
+			print 'Admin required to list services'
 	    	sys.exit(0)
 	if testkeystone or testall:
 		tenants, users, roles = o.keystonetest()
@@ -3098,4 +3135,5 @@ if __name__ == "__main__":
 		if embedded:	
 			if testnova or testheat:
 				o._novaafter()
-			o._clean()
+			if o.admin:
+				o._clean()
