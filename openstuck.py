@@ -45,7 +45,7 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Add_KeyPair', 'List_KeyPair', 'Remove_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Metadata', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Metadata', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -156,6 +156,9 @@ class Openstuck():
 			image           = glance.images.create(name=novaimage, visibility='public', disk_format='qcow2',container_format='bare')
 			with open(imagepath,'rb') as data:
 				glance.images.upload(image.id, data)
+			available = o._available(glance.images, image.id, timeout,status='active')
+			if not available:
+				raise Exception("Timeout waiting for available status")
 		novanets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == novanet ]
 		if not novanets:
 			network         = {'name': novanet, 'admin_state_up': True, 'tenant_id': tenantid}
@@ -250,16 +253,15 @@ class Openstuck():
 			newstatus = manager.get(objectid).status
 		return True
 	def _searchlog(self, server,search, timeout):
-		print "2" +str(timeout)
 		timein = 0
 		while True:
 			log = server.get_console_output()
 			if search in log:
         			break
-			timein += 0.2
+			timein += 1
 			if timein > timeout:
 				return False
-			time.sleep(0.2)
+			time.sleep(0.5)
 		return True
 	def _deleted(self, manager, objectid, timeout):
 		timein = 0
@@ -393,7 +395,6 @@ class Openstuck():
 			output.append(['nova', 'Check_Novnc', servername, servername, runningtime, results,])
 
 	def Check_Metadata(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
-		print "1"+str(timeout)
 		starttime = time.time()
 		if server is None:
 			errors.append('Check_Metadata')
@@ -404,7 +405,8 @@ class Openstuck():
 			return
 		servername = server.name
 		try:
-                        found = o._searchlog(server,'METADATA',timeout)
+                        #found = o._searchlog(server,'METADATA',timeout)
+                        found = o._searchlog(server,servername,timeout)
                         if not found:
                                 raise Exception("Timeout waiting for metadata")
 			results = 'OK'
@@ -628,7 +630,7 @@ class Openstuck():
 				network     = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
 				networkid   = nova.networks.find(label=network).id
 			else:
-				keypairname = nova.keypairs.find(name='novakey').name
+				keypairname = 'novakey'
 				image       = nova.images.find(name='novaimage')
 				networkid   = nova.networks.find(label='novanet').id
 			flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
@@ -3049,10 +3051,16 @@ if __name__ == "__main__":
 		securitygroups, networks, subnets, routers = o.neutrontest()
 	if testnova or testall:
 		if embedded:
-			if imagepath is None:
-				print "Missing OS_GLANCE_IMAGE_PATH environment variable"
+			if imagepath is None or not os.path.isfile(imagepath):
+				print "Incorrect OS_GLANCE_IMAGE_PATH environment variable"
+				o._novaafter()
+				o._clean()
 				sys.exit(1)
-			o._novabefore(externalid)
+			try:
+				o._novabefore(externalid)
+			except:
+				o._novaafter()
+				o._clean()
 		flavors, keypairs, servers = o.novatest()
 	if testheat or testall:
 		if o.embedded:
