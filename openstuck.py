@@ -147,7 +147,6 @@ class Openstuck():
 		self.timeout          = timeout
 		self.clouduser        = clouduser
 	def _getfloatingip(self, server):
-		print server.addresses
 		for net in server.addresses:
         		for info in server.addresses[net]:
                 		if info["OS-EXT-IPS:type"] == 'floating':
