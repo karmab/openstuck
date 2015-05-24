@@ -47,7 +47,7 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Metadata', 'Check_SSH', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Metadata', 'Add_FloatingIp', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -120,6 +120,7 @@ class Openstuck():
 		self.output            = PrettyTable(['Category', 'Description', 'Concurrency', 'Repeat', 'Time(Seconds)', 'Result'])
 		self.output.align      = "l"
 		self.endpoint          = endpoint
+        	self.project           = project
         	self.tenant            = "%stenant" % project
         	self.user              = "%suser" % project
         	self.password          = "%spassword" % project
@@ -146,6 +147,7 @@ class Openstuck():
 		self.timeout          = timeout
 		self.clouduser        = clouduser
 	def _getfloatingip(self, server):
+		print server.addresses
 		for net in server.addresses:
         		for info in server.addresses[net]:
                 		if info["OS-EXT-IPS:type"] == 'floating':
@@ -154,11 +156,13 @@ class Openstuck():
 
 	def _novabefore(self, externalid):
 		tenantid        = self.auth_tenant_id
-		novaimage	= 'novaimage'
-		novanet		= 'novanet'
-		novasubnet	= 'novasubnet'
-		novarouter	= 'novarouter'
-		novakey	        = 'novakey'
+		novaflavor1	= "%s-flavor1" % self.project
+		novaflavor2	= "%s-flavor2" % self.project
+		novaimage	= "%s-image" % self.project
+		novakey	        = "%s-key" % self.project
+		novanet		= "%s-net" % self.project
+		novasubnet	= "%s-subnet" % self.project
+		novarouter	= "%s-router" % self.project
 		imagepath       = self.imagepath
 		keystone        = self.keystone
 		nova            = novaclient.Client('2', **self.novacredentials)
@@ -166,6 +170,10 @@ class Openstuck():
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
+		flavors         = [ flavor for flavor in nova.flavors.list() if 'novaflavor' in flavor.name ]
+		if len(flavors) != 2:
+			flavor1 = nova.flavors.create(name=novaflavor1,ram=512,vcpus=1,disk=1)
+			flavor2 = nova.flavors.create(name=novaflavor2,ram=1024,vcpus=2,disk=1)
 		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakey]
 		if len(keypairs) != 1:
 			keypair = nova.keypairs.create(novakey)
@@ -200,20 +208,24 @@ class Openstuck():
 			neutron.add_interface_router(routerid,{'subnet_id':subnetid } )
 		return 
 	def _novaafter(self):
-		novaimage	= 'novaimage'
-		novakey	        = 'novakey'
-		novanet		= 'novanet'
-		novasubnet	= 'novasubnet'
-		novarouter	= 'novarouter'
+		novaflavor1	= "%s-flavor1" % self.project
+		novaflavor2	= "%s-flavor2" % self.project
+		novaimage	= "%s-image" % self.project
+		novakey	        = "%s-key" % self.project
+		novanet		= "%s-net" % self.project
+		novasubnet	= "%s-subnet" % self.project
+		novarouter	= "%s-router" % self.project
                 keystone        = self.keystone
                 glanceendpoint  = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
 		nova            = novaclient.Client('2', **self.novacredentials)
+		flavors         = [ flavor for flavor in nova.flavors.list() if flavor.name == novaflavor1 or flavor.name == novaflavor2]
+		for flavor in flavors:
+			nova.flavors.delete(flavor.id)
 		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakey]
-		if len(keypairs) == 1:
-			keypair = keypairs[0]
+		for keypair in keypairs:
 			keypair.delete()
 		images = [ image for image in glance.images.list() if image.name == novaimage]
 		for image in images:
@@ -343,9 +355,9 @@ class Openstuck():
 			if not floating_ips:
 				floating_ip = nova.floating_ips.create()
 			else:
-				floating_ip = floating_ip[0]
-			nova.add_floating_ip(floatingip)
-			print floatingip
+				floating_ip = floating_ips[0]
+			floating_ip = nova.floating_ips.create()
+			server.add_floating_ip(floating_ip)
 			results = 'OK'
 		except Exception as error:
 			errors.append('Add_FloatingIP')
@@ -354,6 +366,7 @@ class Openstuck():
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Add_FloatingIP: %s %s seconds %s" % (servername, runningtime, results)
+			output.append(['nova', 'Add_FloatingIP', servername, servername, runningtime, results,])
 
 	def Add_Role(self, keystone, user, role, tenant, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
@@ -477,14 +490,14 @@ class Openstuck():
 			return
 		servername = server.name
 		try:
-			floatingip = o._getfloatingip(server)
+			floatingip = o._getfloatingip(nova.servers.get(server.id))
 			privatekeyfile = StringIO.StringIO(self.private_key)
 			pkey = paramiko.RSAKey.from_private_key(privatekeyfile)
 			cmd='ls'
 			ssh = paramiko.SSHClient()
 			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 			ssh.connect(floatingip, username=self.clouduser, pkey=pkey)
-			ssh.exec_command(cmd)
+			stdin, stdout, stder   = ssh.exec_command(cmd)
 			results = 'OK'
 		except Exception as error:
 			errors.append('Check_SSH')
@@ -493,6 +506,7 @@ class Openstuck():
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Check_SSH: %s %s seconds %s" % (servername, runningtime, results)
+			output.append(['nova', 'Check_SSH', servername, servername, runningtime, results,])
 
 	def Create_Alarm(self, ceilometer, alarm, alarms=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
@@ -704,15 +718,18 @@ class Openstuck():
 				network     = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
 				networkid   = nova.networks.find(label=network).id
 			else:
-				keypairname = 'novakey'
-				image       = nova.images.find(name='novaimage')
-				networkid   = nova.networks.find(label='novanet').id
-			flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
-			flavor  = nova.flavors.find(name=flavor)
+				flavorname  = "%s-flavor1" % self.project
+				flavor      = nova.flavors.find(name=flavorname)
+				keypairname = "%s-key" % self.project
+				imagename   = "%s-image" % self.project
+				image       = nova.images.find(name=imagename)
+				networkname = "%s-net" % self.project
+				#networkid   = nova.networks.find(label='novanet').id
+				networkid   = nova.networks.find(label=networkname).id
+				#flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
+				#flavor  = nova.flavors.find(name=flavor)
 			nics = [{'net-id': networkid}]
 			userdata = "#!/bin/bash\necho METADATA >/dev/ttyS0"
-			#newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics)
-			#newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics, key_name=keypairname)
 			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
 			servers.append(newserver.id)
                         active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
@@ -770,14 +787,15 @@ class Openstuck():
 				if not embedded:
 					image     = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
 					network   = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+					flavor1   = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
 				else:
-					image     = 'novaimage'
-					network   = 'novanet'
-				flavor = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
+					image     = "%s-image" % self.project
+					network   = "%s-net" % self.project
+					flavor1   = "%s-flavor1" % self.project
 				stackinstance = "%sinstance" % stack
 				template={'heat_template_version': '2013-05-23', 'description': 'Testing Template', 'resources': 
 				 	{stackinstance: {'type': 'OS::Nova::Server', 'properties': {'image': image,
-				 	'flavor': flavor, 'networks': [{'network': network }]}}}}
+				 	'flavor': flavor1, 'networks': [{'network': network }]}}}}
 				template = json.dumps(template)
 			else:
 				template = yaml.load(open(template))
@@ -1017,7 +1035,7 @@ class Openstuck():
 			return
 		flavorname = flavor.name
 		try:
-			flavor.delete()
+			nova.flavors.delete(flavor.id)
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Flavor')
@@ -1333,6 +1351,31 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Volume: %s %s seconds %s" % (volumename, runningtime, results)
 			output.append(['cinder', 'Delete_Volume', volumename, volumename, runningtime, results,])
+
+	def Grow_Server(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if server is None:
+			errors.append('Grow_Server')
+			results = 'NotRun'
+			if verbose:
+				print "Grow_Server: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Grow_Server', 'N/A', 'N/A', '0', results,])
+			return
+		try:
+			flavor2 = nova.flavors.get("%s-flavor2" % self.project)
+			servers.resize(flavor2)
+                        active = o._available(nova.servers, server.id, timeout, status='ACTIVE')
+                        if not active:
+                                raise Exception("Timeout waiting for active status")
+			results = 'OK'
+		except Exception as error:
+			errors.append('Grow_Server')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			output.append(['nova', 'Grow_Server', server.name, server.name, runningtime, results,])
+
 	def Grow_Volume(self, cinder, volume, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if volume is None:
@@ -1357,6 +1400,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Grow_Volume: %s %s seconds %s" % (volume.name, runningtime, results)
 			output.append(['cinder', 'Grow_Volume', volume.name, volume.name, runningtime, results,])
+
 	def List_Alarm(self, ceilometer, alarm, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if alarm is None:
@@ -1755,6 +1799,31 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Restore_Backup: %s %s seconds %s" % (backup_name, runningtime, results )
 			output.append(['cinder', 'Restore_Backup', backup_name, backup_name, runningtime, results,])	
+
+	def Shrink_Server(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if server is None:
+			errors.append('Shrink_Server')
+			results = 'NotRun'
+			if verbose:
+				print "Shrink_Server: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Shrink_Server', 'N/A', 'N/A', '0', results,])
+			return
+		try:
+			flavor1 = nova.flavors.get("%s-flavor1" % self.project)
+			servers.resize(flavor1)
+                        active = o._available(nova.servers, server.id, timeout, status='ACTIVE')
+                        if not active:
+                                raise Exception("Timeout waiting for active status")
+			results = 'OK'
+		except Exception as error:
+			errors.append('Shrink_Server')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			output.append(['nova', 'Shrink_Server', server.name, server.name, runningtime, results,])
+
 	def _printreport(self):
 		return self.output
 	def listservices(self):
@@ -2859,6 +2928,21 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 
+		test    = 'Add_FloatingIp'
+		reftest = 'Create_Server'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Add_FloatingIp, args=(nova, server, errors, output, self.verbose, timeout, )) for server in servers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
 		test    = 'Check_SSH'
 		reftest = 'Create_Server'
 		if test in tests:
@@ -2873,6 +2957,35 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
+
+		test    = 'Grow_Server'
+		reftest = 'Create_Server'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Grow_Server, args=(nova, server, errors, output, self.verbose, timeout, )) for server in servers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test    = 'Shrink_Server'
+		reftest = 'Create_Server'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Shrink_Server, args=(nova, server, errors, output, self.verbose, timeout, )) for server in servers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
 
 		test    = 'Delete_Server'
 		reftest = 'Create_Server'
@@ -3177,7 +3290,8 @@ if __name__ == "__main__":
 				sys.exit(1)
 			try:
 				o._novabefore(externalid)
-			except:
+			except Exception as e:	
+				print e
 				o._novaafter()
 				o._clean()
 		flavors, keypairs, servers = o.novatest()
