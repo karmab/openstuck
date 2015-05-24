@@ -4,7 +4,7 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 
 ##Requisites
 
-- python-keystoneclient  python-glanceclient  python-novaclient python-neutronclient  python-cinderclient  python-swiftclient rpms
+- python-keystoneclient  python-glanceclient  python-novaclient python-neutronclient  python-cinderclient  python-swiftclient rpms python-paramiko 
 - python-prettyparse rpm
 - openstuck.ini file in your home directory or in same directory as program (look at sample for syntax)
 
@@ -75,6 +75,8 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - add tenantid in network creation tests
 - create a specific flavor during nova testing instead of hardcoded relying on m1.tiny
 - run the Check_Console later so it can provide a more interesting output (typically check that hostname of the vm shows up there)
+- adjust the sizes of the flavours to run nova tests and report ERRORS for Create_Server instead of just saying it timedout
+
 
 ##Known bugs
 - Create_Backup race condition giving a "Invalid volume: Volume to be backed up must be available" message
