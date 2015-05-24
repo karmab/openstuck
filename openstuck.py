@@ -51,6 +51,7 @@ novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Cre
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
+hatests			 = ['Fence_Controller', 'Fence_Compute', 'Fence_LoadBalancer', 'Fence_Controller', 'Stop_Mysql', 'Stop_Amqp', 'Stop_Mongodb', 'Stop_Openstack']
 
 def _keystonecreds():
 	keystoneinfo                = {}
@@ -78,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20'):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20'):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -117,6 +118,7 @@ class Openstuck():
 		self.heattests         = heattests 
 		self.ceilometertests   = ceilometertests 
 		self.swifttests        = swifttests
+		self.hatests           = hatests
 		self.output            = PrettyTable(['Category', 'Description', 'Concurrency', 'Repeat', 'Time(Seconds)', 'Result'])
 		self.output.align      = "l"
 		self.endpoint          = endpoint
@@ -356,18 +358,16 @@ class Openstuck():
 			return
 		servername = server.name
 		try:
-			#floatingips = [ floatingip for floatingip in nova.floating_ips.list() if floatingip.instance_id is None]
-			#if not floating_ips:
 			if self.externalnet is not None:
+                		neutronendpoint = self.keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
+                		neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=self.keystone.auth_token)
 				externalnets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == self.externalnet ]
 				if externalnets:
 					externalid  = externalnets[0]['id']
 					floating_ip = nova.floating_ips.create(externalid)
 					floatings.append(floating_ip.id)
 			else:
-				Raise Exception('Missing External net')
-			#else:
-			#	floating_ip = floating_ips[0]
+				raise Exception('Missing External net.set OS_NEUTRON_EXTERNALNET env variable?')
 			server.add_floating_ip(floating_ip)
 			results = 'OK'
 		except Exception as error:
@@ -502,6 +502,8 @@ class Openstuck():
 		servername = server.name
 		try:
 			floatingip = o._getfloatingip(nova.servers.get(server.id))
+			if floatingip is None:
+				raise Exception('Missing floating ip')
 			privatekeyfile = StringIO.StringIO(self.private_key)
 			pkey = paramiko.RSAKey.from_private_key(privatekeyfile)
 			cmd='ls'
@@ -3223,6 +3225,109 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 		return containers
+	def hatest(self):
+		category = 'ha'
+		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
+		errors   = []
+		tests = self.hatests
+		if self.verbose:
+			print "Testing HA..."
+
+		test    = 'Fence_Controller'
+		reftest = test
+		if test in tests:
+			starttime = time.time()
+			print "Running Fence_Controller"
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			#self._report(category, test, concurrency, repeat, runningtime, errors)
+			#self._addrows(verbose, output)
+
+		test    = 'Fence_Compute'
+		reftest = test
+		if test in tests:
+			starttime = time.time()
+			print "Running Fence_Compute"
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			#self._report(category, test, concurrency, repeat, runningtime, errors)
+			#self._addrows(verbose, output)
+
+		test    = 'Fence_LoadBalancer'
+		reftest = test
+		if test in tests:
+			starttime = time.time()
+			print "Running Fence_LoadBalancer"
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			#self._report(category, test, concurrency, repeat, runningtime, errors)
+			#self._addrows(verbose, output)
+
+		test    = 'Fence_Controller'
+		reftest = test
+		if test in tests:
+			starttime = time.time()
+			print "Running Fence_Controller"
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			#self._report(category, test, concurrency, repeat, runningtime, errors)
+			#self._addrows(verbose, output)
+
+		test    = 'Stop_Mysql'
+		reftest = test
+		if test in tests:
+			starttime = time.time()
+			print "Running Stop_Mysql"
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			#self._report(category, test, concurrency, repeat, runningtime, errors)
+			#self._addrows(verbose, output)
+
+		test    = 'Stop_Amqp'
+		reftest = test
+		if test in tests:
+			starttime = time.time()
+			print "Running Stop_Amqp"
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			#self._report(category, test, concurrency, repeat, runningtime, errors)
+			#self._addrows(verbose, output)
+
+		test    = 'Stop_Mongodb'
+		reftest = test
+		if test in tests:
+			starttime = time.time()
+			print "Running Stop_Mongodb"
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			#self._report(category, test, concurrency, repeat, runningtime, errors)
+			#self._addrows(verbose, output)
+
+		test    = 'Stop_Openstack'
+		reftest = test
+		if test in tests:
+			starttime = time.time()
+			print "Running Stop_Openstack"
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			#self._report(category, test, concurrency, repeat, runningtime, errors)
+			#self._addrows(verbose, output)
 
 if __name__ == "__main__":
 	#parse options
@@ -3245,12 +3350,12 @@ if __name__ == "__main__":
 	testinggroup.add_option('-X', '--ceilometer', dest='testceilometer', action='store_true',default=False, help='Test ceilometer')
 	parser.add_option_group(testinggroup)
 	novagroup = optparse.OptionGroup(parser, 'Nova Flavor Testing options')
-	novagroup.add_option('-d', '--disk', dest='disk', default='20', type='int', help='Flavor Disk for nova tests. Defaults to 20')
-	novagroup.add_option('-r', '--ram', dest='ram', default='512', type='int', help='Flavor Memory for nova tests. Defaults to 512')
-	novagroup.add_option('--cpus', dest='cpus', default='1', type='int', help='Flavor Cpus for nova tests. Defaults to 1')
+	novagroup.add_option('-d', '--disk', dest='disk', default='20', type='int', help='Flavor Disk for nova tests. Defaults to env[NOVA_DISK] or 20 otherwise')
+	novagroup.add_option('-r', '--ram', dest='ram', default='512', type='int', help='Flavor Memory for nova tests. Defaults to env[NOVA_RAM] or 512 otherwise')
+	novagroup.add_option('--cpus', dest='cpus', default='1', type='int', help='Flavor Cpus for nova tests. Defaults env[NOVA_CPUS] or 1 otherwise')
 	parser.add_option_group(novagroup)
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. Defaults to acme')
-	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] and 80 if not found')
+	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] or 80 otherwise')
 	parser.add_option('-u', '--clouduser', dest='clouduser', default='root', type='string', help='User to SSH test. Defaults to root')
 	parser.add_option('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Verbose mode. Defaults to False')
 	parser.add_option('-e', '--embedded', dest='embedded', default=True, action='store_true', help='Create a dedicated tenant to hold all tests. Defaults to True')
@@ -3299,7 +3404,7 @@ if __name__ == "__main__":
 	    	os._exit(1)
 	if listservices:
 		embedded = False
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk)
+	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk)
 	#testing
 	if listservices:
 		if o.admin:
@@ -3338,7 +3443,7 @@ if __name__ == "__main__":
 	if testswift or testall:
 		containers = o.swifttest()
 	if testha or testall:
-		o.alltest()
+		o.hatest()
 	#cleaning
 	if testkeystone or testall:
                 o.keystoneclean(tenants, users, roles)

@@ -60,7 +60,8 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - OS_CEILOMETER_TIMEOUT		
 - OS_SWIFT_TIMEOUT		
 - OS_HEAT_TIMEOUT		
-- OS_NEUTRON_EXTERNALID
+- OS_NEUTRON_EXTERNALNET
+-
 
 
 ##TODO LIST 
