@@ -350,8 +350,9 @@ class Openstuck():
 		pkey=None
 		if privatekey is not None:
 			password = None
-			privatekeyfile = StringIO.StringIO(self.private_key)
-			pkey = paramiko.RSAKey.from_private_key(privatekeyfile)
+			#privatekeyfile = StringIO.StringIO(privatekey)
+			#pkey = paramiko.RSAKey.from_private_key(privatekey)
+			pkey = paramiko.RSAKey.from_private_key_file(privatekey)
 		ssh = paramiko.SSHClient()
 		ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 		ssh.connect(server, username=username,password=password, pkey=pkey)
