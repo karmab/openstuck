@@ -47,7 +47,7 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIp', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Migrate_Server', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIp', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Migrate_Server', 'Create_VolumeServer', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Update_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -79,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',amqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',amqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -132,6 +132,7 @@ class Openstuck():
         	self.description       = "Members of the %s corp" % project
         	self.image             = "%simage" % project
 		self.imagepath         = imagepath
+		self.imagesize         = imagesize
         	self.volume            = "%svolume" % project
         	self.volumetype        = volumetype
         	self.securitygroup     = "%ssecuritygroup" % project
@@ -164,22 +165,27 @@ class Openstuck():
 		return None
 
 	def _novabefore(self, externalnet):
-		tenantid        = self.auth_tenant_id
-		novaflavor1	= "%s-flavor1" % self.project
-		novaflavor2	= "%s-flavor2" % self.project
-		novaimage	= "%s-image" % self.project
-		novakey	        = "%s-key" % self.project
-		novanet		= "%s-net" % self.project
-		novasubnet	= "%s-subnet" % self.project
-		novarouter	= "%s-router" % self.project
-		imagepath       = self.imagepath
-		keystone        = self.keystone
-		nova            = novaclient.Client('2', **self.novacredentials)
-                glanceendpoint  = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-                glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
-                neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-                neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
-		flavors         = [ flavor for flavor in nova.flavors.list() if 'novaflavor' in flavor.name ]
+		tenantid          = self.auth_tenant_id
+		novaflavor1	  = "%s-flavor1" % self.project
+		novaflavor2	  = "%s-flavor2" % self.project
+		novaimage	  = "%s-image" % self.project
+		novavolume	  = "%s-volume" % self.project
+		novakey	          = "%s-key" % self.project
+		novanet		  = "%s-net" % self.project
+		novasubnet	  = "%s-subnet" % self.project
+		novarouter	  = "%s-router" % self.project
+		imagepath         = self.imagepath
+		imagesize         = self.imagesize
+		keystone          = self.keystone
+		nova              = novaclient.Client('2', **self.novacredentials)
+                glanceendpoint    = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
+                glance            = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
+		cindercredentials = novacredentials
+		cindercredentials['project_id'] = self.project
+		cinder            = cinderclient.Client(**cindercredentials)
+                neutronendpoint   = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
+                neutron           = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
+		flavors           = [ flavor for flavor in nova.flavors.list() if "%s-flavor" % self.project in flavor.name ]
 		if len(flavors) != 2:
 			flavor1 = nova.flavors.create(name=novaflavor1,ram=self.ram,vcpus=self.cpus,disk=self.disk)
 			flavor2 = nova.flavors.create(name=novaflavor2,ram=self.ram*2,vcpus=self.cpus*2,disk=self.disk)
@@ -195,6 +201,10 @@ class Openstuck():
 			available = o._available(glance.images, image.id, timeout,status='active')
 			if not available:
 				raise Exception("Timeout waiting for available status")
+			volumes         = [ volume for volume in cinder.volumes.list() if  volume.name == novavolume]
+			if len(volumes) != 1:
+				volume = cinder.volumes.create(name=novavolume,size=self.imagesize, imageRef=image.id)
+					
 		novanets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == novanet ]
 		if not novanets:
 			network         = {'name': novanet, 'admin_state_up': True, 'tenant_id': tenantid}
@@ -218,11 +228,20 @@ class Openstuck():
 			router    = neutron.create_router({'router':router})
 			routerid  = router['router']['id']
 			neutron.add_interface_router(routerid,{'subnet_id':subnetid } )
+		#add ssh securiy group
+		securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'] == 'default' and s['tenant_id'] == tenantid]
+		if securitygroups:
+        		securitygroup=securitygroups[0]
+        		securitygroupid=securitygroup['id']
+        		sshrule = {'security_group_rule': {'direction': 'ingress','security_group_id': securitygroupid, 'port_range_min': '22' ,'port_range_max': '22','protocol': 'tcp','remote_group_id': None,'remote_ip_prefix': '0.0.0.0/0'}}
+        		neutron.create_security_group_rule(sshrule)
 		return 
 	def _novaafter(self):
+		tenantid          = self.auth_tenant_id
 		novaflavor1	= "%s-flavor1" % self.project
 		novaflavor2	= "%s-flavor2" % self.project
 		novaimage	= "%s-image" % self.project
+		novavolume	= "%s-volume" % self.project
 		novakey	        = "%s-key" % self.project
 		novanet		= "%s-net" % self.project
 		novasubnet	= "%s-subnet" % self.project
@@ -230,6 +249,9 @@ class Openstuck():
                 keystone        = self.keystone
                 glanceendpoint  = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
+		cindercredentials = novacredentials
+		cindercredentials['project_id'] = self.project
+		cinder            = cinderclient.Client(**cindercredentials)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
 		nova            = novaclient.Client('2', **self.novacredentials)
@@ -243,6 +265,10 @@ class Openstuck():
 		for image in images:
        	 		imageid = image.id
 			glance.images.delete(imageid)
+		volumes = [ volume for volume in cinder.volumes.list() if volume.name == novavolume]
+		for volume in volumes:
+       	 		volumeid = volume.id
+			cinder.volumes.delete(volumeid)
 		routers = [ router for router in neutron.list_routers()['routers'] if router['name'] == novarouter]
 		for router in routers:
         		routerid = router['id']
@@ -261,6 +287,12 @@ class Openstuck():
 		for network in networks:
         		networkid = network['id']
 			neutron.delete_network(networkid)
+		#add ssh securiy group
+		securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'] == 'default' and s['tenant_id'] == tenantid]
+		if securitygroups:
+        		securitygroup   = securitygroups[0]
+        		securitygroupid = securitygroup['id']
+			neutron.delete_security_group(securitygroupid)
 	def _clean(self):
 		if self.embedded and self.admin:
 			tenant = self.keystone.tenants.find(name=self.auth_tenant_name)
@@ -344,9 +376,9 @@ class Openstuck():
 			print "Missing haserver. Set them as OS_HA_SERVER or on command line"
 			return False
 		success   = False
-		stopcmd   = stopcmd   if stopcmd   is not None else "service %s stop"   % service 
-		startcmd  = startcmd  if startcmd  is not None else "service %s start"  % service 
-		statuscmd = statuscmd if statuscmd is not None else "service %s status" % service 
+		stopcmd   = stopcmd   if stopcmd   is not None else "sudo service %s stop"   % service 
+		startcmd  = startcmd  if startcmd  is not None else "sudo service %s start"  % service 
+		statuscmd = statuscmd if statuscmd is not None else "sudo service %s status" % service 
 		pkey=None
 		if privatekey is not None:
 			password = None
@@ -765,6 +797,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_SecurityGroup: %s %s seconds %s" % (securitygroup, runningtime, results )
 			output.append(['neutron', 'Create_SecurityGroup', securitygroup, securitygroup, runningtime, results,])
+
 	def Create_Server(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
@@ -802,6 +835,44 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Server: %s %s seconds %s" % (server, runningtime, results )
 			output.append(['nova', 'Create_Server', server, server, runningtime, results,])
+
+	def Create_VolumeServer(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		try:
+			if not embedded:
+				keypairname = None
+				volume      = os.environ['OS_NOVA_VOLUME']   if os.environ.has_key('OS_NOVA_VOLUME')   else 'cirros'
+				volume      = nova.volumes.find(name=volume)
+				network     = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+				networkid   = nova.networks.find(label=network).id
+			else:
+				flavorname  = "%s-flavor1" % self.project
+				flavor      = nova.flavors.find(name=flavorname)
+				keypairname = "%s-key" % self.project
+				volumename  = "%s-volume" % self.project
+				volume      = nova.volumes.find(name=volumename)
+				print volume
+				networkname = "%s-net" % self.project
+				networkid   = nova.networks.find(label=networkname).id
+			nics = [{'net-id': networkid}]
+			userdata = "#!/bin/bash\necho METADATA >/dev/ttyS0"
+			newserver = nova.servers.create(name=server, image=volume, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
+			servers.append(newserver.id)
+                        active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
+                        if not active:
+                                raise Exception("Timeout waiting for active status")
+			results = 'OK'
+		except Exception as error:
+			errors.append('Create_VolumeServer')
+			results = str(error)
+			servers.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_VolumeServer: %s %s seconds %s" % (server, runningtime, results )
+			output.append(['nova', 'Create_VolumeServer', server, server, runningtime, results,])
+
+
 	def Create_Snapshot(self, cinder, volume, snapshots, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if volume is None:
@@ -835,6 +906,42 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Snapshot: %s %s seconds %s" % (snapshot, runningtime, results )
 			output.append(['cinder', 'Create_Snapshot', snapshot, snapshot, runningtime, results,])	
+
+	def Create_SnapshotServer(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		try:
+			if not embedded:
+				keypairname = None
+				snapshot    = os.environ['OS_NOVA_SNAPSHOT']   if os.environ.has_key('OS_NOVA_SNAPSHOT')   else 'cirros'
+				snapshot    = nova.snapshots.find(name=snapshot)
+				network     = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+				networkid   = nova.networks.find(label=network).id
+			else:
+				flavorname  = "%s-flavor1" % self.project
+				flavor      = nova.flavors.find(name=flavorname)
+				keypairname = "%s-key" % self.project
+				snapshotname  = "%s-snapshot" % self.project
+				snapshot      = nova.images.find(name=snapshotname)
+				networkname = "%s-net" % self.project
+				networkid   = nova.networks.find(label=networkname).id
+			nics = [{'net-id': networkid}]
+			userdata = "#!/bin/bash\necho METADATA >/dev/ttyS0"
+			newserver = nova.servers.create(name=server, snapshot=snapshot, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
+			servers.append(newserver.id)
+                        active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
+                        if not active:
+                                raise Exception("Timeout waiting for active status")
+			results = 'OK'
+		except Exception as error:
+			errors.append('Create_SnapshotServer')
+			results = str(error)
+			servers.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_SnapshotServer: %s %s seconds %s" % (server, runningtime, results )
+			output.append(['nova', 'Create_SnapshotServer', server, server, runningtime, results,])
+
 	def Create_Stack(self, heat, stack, stacks=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
@@ -978,6 +1085,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Volume: %s %s seconds %s" % (volume, runningtime, results )
 			output.append(['cinder', 'Create_Volume', volume, volume, runningtime, results,])			
+
 	def Create_Volume_From_Snapshot(self, cinder, snapshot, snapshotvolumes=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if snapshot is None:
@@ -2110,7 +2218,7 @@ class Openstuck():
 					neutron.security_groups.delete(securitygroup['id'])
 				except:
 					continue
-	def novaclean(self, flavors, keypairs, servers, floatings):
+	def novaclean(self, flavors, keypairs, servers, volumeservers, floatings):
 		if self.verbose:
 			print "Cleaning Nova..."
 		nova     = novaclient.Client('2', **self.novacredentials)
@@ -2136,6 +2244,14 @@ class Openstuck():
 			else:
 				try:
 					nova.servers.delete(server.id)
+				except:
+					continue
+		for volumeserver in volumeservers:
+			if volumeserver is None:
+				continue
+			else:
+				try:
+					nova.servers.delete(volumeserver.id)
 				except:
 					continue
 		for flavor in flavors:
@@ -2849,15 +2965,16 @@ class Openstuck():
 
 		return securitygroups, networks, subnets, routers
 	def novatest(self):
-		category  = 'nova'
-		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
-		tests     = self.novatests 
-		mgr       = multiprocessing.Manager()
-		errors    = mgr.list()
-		keypairs  = mgr.list()
-		flavors   = mgr.list()
-		servers   = mgr.list()
-		floatings = mgr.list()
+		category       = 'nova'
+		timeout        = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
+		tests          = self.novatests 
+		mgr            = multiprocessing.Manager()
+		errors         = mgr.list()
+		keypairs       = mgr.list()
+		flavors        = mgr.list()
+		servers        = mgr.list()
+		volumeservers  = mgr.list()
+		floatings      = mgr.list()
 		if self.verbose:
 			print "Testing Nova..."
 		keystone = self.keystone
@@ -3138,6 +3255,23 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 
+		test    = 'Create_VolumeServer'
+		reftest = test
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_VolumeServer, args=(nova, "%s-%d-%d" % (self.server, step, number), volumeservers, errors, output, self.verbose, timeout, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			volumeservers = [ nova.servers.get(server_id) if server_id is not None else None for server_id in volumeservers ]
+
 		test    = 'Delete_Server'
 		reftest = 'Create_Server'
 		if test in tests:
@@ -3152,7 +3286,8 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
-		return flavors, keypairs, servers, floatings
+		return flavors, keypairs, servers, volumeservers, floatings
+
 	def heattest(self):
 		category = 'heat'
 		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
@@ -3606,15 +3741,15 @@ if __name__ == "__main__":
 	parser.add_option_group(listinggroup)
 	testinggroup = optparse.OptionGroup(parser, 'Testing options')
 	testinggroup.add_option('-A', '--availability', dest='testha', action='store_true',default=False, help='Test High Availability')
-        testinggroup.add_option('-C', '--cinder', dest='testcinder', action='store_true',default=False, help='Test cinder')
+        testinggroup.add_option('-C', '--cinder', dest='testcinder', action='store_true',default=False, help='Test Cinder')
 	testinggroup.add_option('-E', '--all', dest='testall', action='store_true',default=False, help='Test All')
-	testinggroup.add_option('-G', '--glance', dest='testglance', action='store_true',default=False, help='Test glance')
-	testinggroup.add_option('-H', '--heat', dest='testheat', action='store_true',default=False, help='Test heat')
-	testinggroup.add_option('-K', '--keystone', dest='testkeystone', action='store_true',default=False, help='Test keystone')
-	testinggroup.add_option('-N', '--nova', dest='testnova', action='store_true',default=False, help='Test nova')
-	testinggroup.add_option('-Q', '--neutron', dest='testneutron', action='store_true',default=False, help='Test neutron')
-	testinggroup.add_option('-S', '--swift', dest='testswift', action='store_true',default=False, help='Test swift')
-	testinggroup.add_option('-X', '--ceilometer', dest='testceilometer', action='store_true',default=False, help='Test ceilometer')
+	testinggroup.add_option('-G', '--glance', dest='testglance', action='store_true',default=False, help='Test Glance')
+	testinggroup.add_option('-H', '--heat', dest='testheat', action='store_true',default=False, help='Test Heat')
+	testinggroup.add_option('-K', '--keystone', dest='testkeystone', action='store_true',default=False, help='Test Keystone')
+	testinggroup.add_option('-N', '--nova', dest='testnova', action='store_true',default=False, help='Test Nova')
+	testinggroup.add_option('-Q', '--neutron', dest='testneutron', action='store_true',default=False, help='Test Neutron')
+	testinggroup.add_option('-S', '--swift', dest='testswift', action='store_true',default=False, help='Test Swift')
+	testinggroup.add_option('-X', '--ceilometer', dest='testceilometer', action='store_true',default=False, help='Test Ceilometer')
 	parser.add_option_group(testinggroup)
 	novagroup = optparse.OptionGroup(parser, 'Nova Flavor Testing options')
 	novagroup.add_option('-d', '--disk', dest='disk', default='20', type='int', help='Flavor Disk for nova tests. Defaults to env[NOVA_DISK] or 20 otherwise')
@@ -3631,7 +3766,7 @@ if __name__ == "__main__":
 	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] or 80 otherwise')
 	parser.add_option('-u', '--clouduser', dest='clouduser', default='root', type='string', help='User for Check_SSH test. Defaults to root')
 	parser.add_option('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Verbose mode. Defaults to False')
-	parser.add_option('-e', '--embedded', dest='embedded', default=True, action='store_true', help='Create a dedicated tenant to hold all tests. Defaults to True')
+	parser.add_option('-e', '--embedded', dest='embedded', default=False, action='store_true', help='Create a dedicated tenant to hold all tests. Defaults to True')
 	(options, args)  = parser.parse_args()
 	listservices     = options.listservices
 	testkeystone     = options.testkeystone
@@ -3670,6 +3805,7 @@ if __name__ == "__main__":
 		ceilometertests     = os.environ['OS_CEILOMETER_TESTS'].split(',')   if os.environ.has_key('OS_CEILOMETER_TESTS')    else ceilometerdefaulttests
 		hatests             = os.environ['OS_HA_TESTS'].split(',')           if os.environ.has_key('OS_HA_TESTS')            else hadefaulttests
 		imagepath           = os.environ['OS_GLANCE_IMAGE_PATH']             if os.environ.has_key('OS_GLANCE_IMAGE_PATH')   else None
+		imagesize           = int(os.environ['OS_GLANCE_IMAGE_SIZE'])        if os.environ.has_key('OS_GLANCE_IMAGE_SIZE')   else 10
 		volumetype          = os.environ['OS_CINDER_VOLUME_TYPE']            if os.environ.has_key('OS_CINDER_VOLUME_TYPE')  else None
 		externalnet         = os.environ['OS_NEUTRON_EXTERNALNET']           if os.environ.has_key('OS_NEUTRON_EXTERNALNET') else None
 		timeout             = int(os.environ['OS_TIMEOUT'])                  if os.environ.has_key('OS_TIMEOUT')             else timeout
@@ -3683,10 +3819,11 @@ if __name__ == "__main__":
 		haprivatekey        = os.environ['OS_HA_PRIVATEKEY']                 if os.environ.has_key('OS_HA_PRIVATEKEY')       else haprivatekey
 	except Exception as e:
 		print "Missing environment variables. source your openrc file first"
+		print e
 	    	os._exit(1)
 	if listservices or testha:
 		embedded = False
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, amqp=amqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey)
+	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, amqp=amqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey)
 	#testing
 	if listservices:
 		if o.admin:
@@ -3715,7 +3852,7 @@ if __name__ == "__main__":
 				print e
 				o._novaafter()
 				o._clean()
-		flavors, keypairs, servers, floatings = o.novatest()
+		flavors, keypairs, servers, volumeservers, floatings = o.novatest()
 	if testheat or testall:
 		if o.embedded:
 			o._novabefore(externalnet)
@@ -3736,7 +3873,7 @@ if __name__ == "__main__":
 	if testneutron or testall:
 		o.neutronclean(securitygroups, networks, subnets, routers)
 	if testnova or testall:
-		o.novaclean(flavors, keypairs, servers, floatings)
+		o.novaclean(flavors, keypairs, servers, volumeservers, floatings)
 	if testheat or testall:
 		o.heatclean(stacks)
 	if testceilometer or testceilometer:

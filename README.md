@@ -4,9 +4,8 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 
 ##Requisites
 
-- python-keystoneclient  python-glanceclient  python-novaclient python-neutronclient  python-cinderclient  python-swiftclient rpms python-paramiko 
+- python-keystoneclient  python-glanceclient  python-novaclient python-neutronclient  python-cinderclient  python-swiftclient python-paramiko  RPMS
 - python-prettyparse rpm
-- openstuck.ini file in your home directory or in same directory as program (look at sample for syntax)
 
 ##Contents
 
@@ -47,6 +46,7 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - OS_CEILOMETER_TESTS    defaults to Create_Alarm, List_Alarm, Delete_Alarm
 - OS_SWIFT_TESTS         defaults to Create_Container, List_Container, Delete_Container
 - OS_GLANCE_IMAGE_PATH   defaults to None
+- OS_GLANCE_IMAGE_SIZE   defaults to 10. Used when creating a volume from the image as part of the NOVA tests
 - OS_HEAT_TEMPLATE       defaults to None ( and will then create a sample one if OS_NOVA_IMAGE, OS_NOVA_FLAVOR and OS_NOVA_NETWORK are defined or custom ones if embedded mode
 - OS_CINDERBACKUP_VOLUME defaults to volume. If specified, it should be an existing volume with a unique name accross all tenants
 - OS_CINDERBACKUP_ID     defaults to None. This is an alternative around the existing limitations of OS_CINDERBACKUP_VOLUME
@@ -66,17 +66,8 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 
 ##TODO LIST 
 
-- wait/check for correct status before reporting instances creation/deletion as ok 
-- wait/check for correct status before reporting heat creation/deletion as ok 
-- redefine a more advanced heat template for default testing
 - improve values for testing alarms creation (threshold and metrics with some sense)
-- add listmeters to test ( and stressing of instance to check it s reported by ceilometer)
 - handle specifically known exceptions instead of beeing generic
-- improve Create_Subnet function to be able to create more than 254 networks as we use the current step to establish cidr (optionally dont do steps, and create as many subnets as nets, one subnet per net...)
-- add tenantid in network creation tests
-- create a specific flavor during nova testing instead of hardcoded relying on m1.tiny
-- run the Check_Console later so it can provide a more interesting output (typically check that hostname of the vm shows up there)
-- adjust the sizes of the flavours to run nova tests and report ERRORS for Create_Server instead of just saying it timedout
 - Create a dedicated metadata check with a script that does a echo in /dev/ttyS0
 
 ##Known bugs
