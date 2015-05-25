@@ -47,11 +47,11 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIp', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Delete_Server']
-heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Delete_Stack']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIp', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Migrate_Server', 'Delete_Server']
+heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Update_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
-hatests			 = ['Fence_Controller', 'Fence_Compute', 'Fence_LoadBalancer', 'Fence_Controller', 'Stop_Mysql', 'Stop_Amqp', 'Stop_Mongodb', 'Stop_Openstack']
+hadefaulttests		 = ['Fence_Controller', 'Fence_Compute', 'Fence_LoadBalancer', 'Fence_Controller', 'Stop_Mysql', 'Stop_Amqp', 'Stop_Mongodb', 'Stop_Keystone', 'Stop_Glance', 'Stop_Cinder', 'Stop_Neutron', 'Stop_Nova', 'Stop_Heat', 'Stop_Ceilometer', 'Stop_Swift']
 
 def _keystonecreds():
 	keystoneinfo                = {}
@@ -79,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20'):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',amqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -151,6 +151,11 @@ class Openstuck():
 		self.ram              = ram
 		self.cpus             = cpus
 		self.disk             = disk
+		self.amqp             = amqp
+		self.haserver	      = haserver
+		self.hauser	      = hauser
+		self.hapassword	      = hapassword
+		self.haprivatekey     = haprivatekey
 	def _getfloatingip(self, server):
 		for net in server.addresses:
         		for info in server.addresses[net]:
@@ -331,10 +336,45 @@ class Openstuck():
         		if cidr not in cidrs:
                 		break
 		return cidr
+	def _testservice(self, server, service, username='root', password=None, privatekey=None, timeout=60, stopcmd=None, statuscmd=None, startcmd=None):
+		if password is None and privatekey is None:
+			print "Missing hapassword and/or privatekeyfile. Set them as OS_HA_PASSWORD and OS_HA_PRIVATEKEY or on command line"
+			return False
+		if server is None:
+			print "Missing haserver. Set them as OS_HA_SERVER or on command line"
+			return False
+		success   = False
+		stopcmd   = stopcmd   if stopcmd   is not None else "service %s stop"   % service 
+		startcmd  = startcmd  if startcmd  is not None else "service %s start"  % service 
+		statuscmd = statuscmd if statuscmd is not None else "service %s status" % service 
+		pkey=None
+		if privatekey is not None:
+			password = None
+			privatekeyfile = StringIO.StringIO(self.private_key)
+			pkey = paramiko.RSAKey.from_private_key(privatekeyfile)
+		ssh = paramiko.SSHClient()
+		ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+		ssh.connect(server, username=username,password=password, pkey=pkey)
+		stdin, stdout, stderr   = ssh.exec_command(stopcmd)
+		timein = 0
+		running = False
+		while not running:
+			timein += 0.2
+			if timein > timeout :
+				success = False
+				break
+			time.sleep(0.2)
+			stdin, stdout, stderr   = ssh.exec_command(statuscmd)
+			returncode = stdout.channel.recv_exit_status()
+			if returncode == 0:
+				success = True
+				break
+		stdin, stdout, stderr   = ssh.exec_command(startcmd)
+		return success
+
 	def Add_FlavorAccess(self, nova, flavor, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
-			#THIS IS BUGGY
 			tenant_id = nova.tenant_id
 			nova.flavor_access.add_tenant_access(flavor, tenant_id)
 			results = 'OK'
@@ -814,10 +854,10 @@ class Openstuck():
 				template = json.dumps(template)
 			else:
 				template = yaml.load(open(template))
-				for oldkey in template['resources'].keys():
-					newkey = "%s%s" % (stack, oldkey)
-					template['resources'][newkey]= template['resources'].pop(oldkey)
-					del template['resources'][oldkey]
+				#for oldkey in template['resources'].keys():
+				#	newkey = "%s%s" % (stack, oldkey)
+				#	template['resources'][newkey]= template['resources'].pop(oldkey)
+				#	del template['resources'][oldkey]
 			newstack = heat.stacks.create(stack_name=stack, template=template)
 			stacks.append(newstack['stack']['id'])
 			available = o._available(heat.stacks, newstack['stack']['id'], timeout, status='COMPLETE')
@@ -1660,6 +1700,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Stack: %s %s seconds %s" % (stackname, runningtime, results)
 			output.append(['heat', 'List_Stack', stackname, stackname, runningtime, results,])
+
 	def List_Subnet(self, neutron, subnet, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if subnet is None:
@@ -1728,6 +1769,32 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Volume: %s %s seconds %s" % (volume.name, runningtime, results)
 			output.append(['cinder', 'List_Volume', volume.name, volume.name, runningtime, results,])
+
+
+
+	def Migrate_Server(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if server is None:
+			errors.append('Migrate_Server')
+			results = 'NotRun'
+			if verbose:
+				print "Migrate_Server: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Migrate_Server', 'N/A', 'N/A', '0', results,])
+			return
+		try:
+			server.live_migrate()
+			active = o._available(nova.servers, server.id, timeout, status='ACTIVE')
+                        if not active:
+				raise Exception("Timeout waiting for active status")
+			results = 'OK'
+		except Exception as error:
+			errors.append('Migrate_Server')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			output.append(['nova', 'Migrate_Server', server.name, server.name, runningtime, results,])
+
 	def Reach_VolumeQuota(self, cinder, errors=None, output=None, verbose=False, timeout=20):
 		quotavolumes = []
 		errors = []
@@ -1838,6 +1905,50 @@ class Openstuck():
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			output.append(['nova', 'Shrink_Server', server.name, server.name, runningtime, results,])
+
+	def Update_Stack(self, heat, stack, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		if stack is None:
+			results = 'NotRun'
+			errors.append('Update_Stack')
+			if verbose:
+				print "Update_Stack: %s 0 seconds" % 'N/A'
+				output.append(['heat', 'Update_Stack', 'N/A', 'N/A', '0', results,])
+			return	
+		stackid   = stack.id
+		stackname = stack.stack_name
+		try:
+                        template  = os.environ['OS_HEAT_TEMPLATE']   if os.environ.has_key('OS_HEAT_TEMPLATE')   else None
+                        if template is None:
+                                if not embedded:
+                                        image     = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
+                                        network   = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+                                        flavor2   = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.small'
+                                else:
+                                        image     = "%s-image" % self.project
+                                        network   = "%s-net" % self.project
+                                        flavor2   = "%s-flavor2" % self.project
+                                stackinstance = "%sinstance" % stack
+                                template={'heat_template_version': '2013-05-23', 'description': 'Testing Template', 'resources':
+                                        {stackinstance: {'type': 'OS::Nova::Server', 'properties': {'image': image,
+                                        'flavor': flavor2, 'networks': [{'network': network }]}}}}
+                                template = json.dumps(template)
+                        else:
+                                template = yaml.load(open(template))
+                                #for oldkey in template['resources'].keys():
+                                #       newkey = "%s%s" % (stack, oldkey)
+                                #       template['resources'][newkey]= template['resources'].pop(oldkey)
+                                #       del template['resources'][oldkey]
+
+			heat.stacks.update()
+			results = 'OK'
+		except Exception as error:
+			errors.append('List_Stack')
+			results = str(error)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "List_Stack: %s %s seconds %s" % (stackname, runningtime, results)
 
 	def _printreport(self):
 		return self.output
@@ -3012,6 +3123,20 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 
+		test    = 'Migrate_Server'
+		reftest = 'Create_Server'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Migrate_Server, args=(nova, server, errors, output, self.verbose, timeout, )) for server in servers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+
 		test    = 'Delete_Server'
 		reftest = 'Create_Server'
 		if test in tests:
@@ -3064,6 +3189,21 @@ class Openstuck():
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
 			jobs = [ multiprocessing.Process(target=self.List_Stack, args=(heat, stack, errors, output, self.verbose, timeout, )) for stack in stacks ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+
+		test    = 'Update_Stack'
+		reftest = 'Create_Stack'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Update_Stack, args=(heat, stack, errors, output, self.verbose, timeout, )) for stack in stacks ]
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -3225,6 +3365,7 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 		return containers
+
 	def hatest(self):
 		category = 'ha'
 		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
@@ -3232,12 +3373,15 @@ class Openstuck():
 		tests = self.hatests
 		if self.verbose:
 			print "Testing HA..."
+		server, username, password = '192.168.5.2', 'root', 'unix1234'
+		privatekey = None
 
 		test    = 'Fence_Controller'
 		reftest = test
 		if test in tests:
 			starttime = time.time()
-			print "Running Fence_Controller"
+			if self.verbose:
+				print "Running Fence_Controller"
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
@@ -3249,7 +3393,8 @@ class Openstuck():
 		reftest = test
 		if test in tests:
 			starttime = time.time()
-			print "Running Fence_Compute"
+			if self.verbose:
+				print "Running Fence_Compute"
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
@@ -3261,7 +3406,8 @@ class Openstuck():
 		reftest = test
 		if test in tests:
 			starttime = time.time()
-			print "Running Fence_LoadBalancer"
+			if verbose:
+				print "Running Fence_LoadBalancer"
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
@@ -3273,7 +3419,8 @@ class Openstuck():
 		reftest = test
 		if test in tests:
 			starttime = time.time()
-			print "Running Fence_Controller"
+			if verbose:
+				print "Running Fence_Controller"
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
@@ -3283,51 +3430,170 @@ class Openstuck():
 
 		test    = 'Stop_Mysql'
 		reftest = test
+		service = 'mysqld'
 		if test in tests:
 			starttime = time.time()
-			print "Running Stop_Mysql"
+			if verbose:
+				print "Running Stop_Mysql"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
 				print "%s  %s seconds" % (test, runningtime)
-			#self._report(category, test, concurrency, repeat, runningtime, errors)
-			#self._addrows(verbose, output)
+			self._report(category, test, '1', '1', runningtime, errors)
 
 		test    = 'Stop_Amqp'
 		reftest = test
+		service = self.amqp
 		if test in tests:
 			starttime = time.time()
-			print "Running Stop_Amqp"
+			if verbose:
+				print "Running Stop_Amqp"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
 				print "%s  %s seconds" % (test, runningtime)
-			#self._report(category, test, concurrency, repeat, runningtime, errors)
-			#self._addrows(verbose, output)
+			self._report(category, test, '1', '1', runningtime, errors)
 
 		test    = 'Stop_Mongodb'
 		reftest = test
+		service = 'mongod'
 		if test in tests:
 			starttime = time.time()
-			print "Running Stop_Mongodb"
+			if verbose:
+				print "Running Stop_Mongodb"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
 				print "%s  %s seconds" % (test, runningtime)
-			#self._report(category, test, concurrency, repeat, runningtime, errors)
-			#self._addrows(verbose, output)
+			self._report(category, test, '1', '1', runningtime, errors)
 
-		test    = 'Stop_Openstack'
-		reftest = test
+		test      = 'Stop_Keystone'
+		reftest   = test
+		service   = 'openstack-keystone'
 		if test in tests:
 			starttime = time.time()
-			print "Running Stop_Openstack"
+			if verbose:
+				print "Running Stop_Keystone"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
 				print "%s  %s seconds" % (test, runningtime)
-			#self._report(category, test, concurrency, repeat, runningtime, errors)
-			#self._addrows(verbose, output)
+			self._report(category, test, '1', '1', runningtime, errors)
+
+		test      = 'Stop_Glance'
+		reftest   = test
+		service   = 'openstack-glance-api'
+		if test in tests:
+			starttime = time.time()
+			if verbose:
+				print "Running Stop_Glance"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, '1', '1', runningtime, errors)
+
+		test      = 'Stop_Cinder'
+		reftest   = test
+		service   = 'openstack-cinder-api'
+		if test in tests:
+			starttime = time.time()
+			if verbose:
+				print "Running Stop_Cinder"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, '1', '1', runningtime, errors)
+
+		test      = 'Stop_Neutron'
+		reftest   = test
+		service   = 'neutron-server'
+		if test in tests:
+			starttime = time.time()
+			if verbose:
+				print "Running Stop_Neutron"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, '1', '1', runningtime, errors)
+
+		test      = 'Stop_Nova'
+		reftest   = test
+		service   = 'openstack-nova-api'
+		if test in tests:
+			starttime = time.time()
+			if verbose:
+				print "Running Stop_Nova"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, '1', '1', runningtime, errors)
+
+		test      = 'Stop_Heat'
+		reftest   = test
+		service   = 'openstack-heat-api'
+		if test in tests:
+			starttime = time.time()
+			if verbose:
+				print "Running Stop_Heat"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, '1', '1', runningtime, errors)
+
+
+		test      = 'Stop_Ceilometer'
+		reftest   = test
+		service   = 'openstack-ceilometer-api'
+		if test in tests:
+			starttime = time.time()
+			if verbose:
+				print "Running Stop_Ceilometer"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, '1', '1', runningtime, errors)
+
+
+		test      = 'Stop_Swift'
+		reftest   = test
+		service   = 'openstack-swift-proxy'
+		if test in tests:
+			starttime = time.time()
+			if verbose:
+				print "Running Stop_Swift"
+			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
+			errors = [] if success else [test]
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, '1', '1', runningtime, errors)
 
 if __name__ == "__main__":
 	#parse options
@@ -3354,9 +3620,15 @@ if __name__ == "__main__":
 	novagroup.add_option('-r', '--ram', dest='ram', default='512', type='int', help='Flavor Memory for nova tests. Defaults to env[NOVA_RAM] or 512 otherwise')
 	novagroup.add_option('--cpus', dest='cpus', default='1', type='int', help='Flavor Cpus for nova tests. Defaults env[NOVA_CPUS] or 1 otherwise')
 	parser.add_option_group(novagroup)
+	hagroup = optparse.OptionGroup(parser, 'Nova Flavor Testing options')
+	hagroup.add_option('-w', '--haserver', dest='haserver', type='string', help='Haserver to HA tests. Defaults to env[OS_HA_SERVER]')
+	hagroup.add_option('-x', '--hauser', dest='hauser', default='root', type='string', help='Hauser to HA tests. Defaults to env[OS_HA_USER]')
+	hagroup.add_option('-y', '--hapassword', dest='hapassword', type='string', help='Hapassword for ha tests. Defaults to env[OS_HA_PASSWORD]')
+	hagroup.add_option('-z', dest='haprivatekey', type='string', help='Ha privatekey file. Defaults env[OS_HA_PRIVATEKEY]')
+	parser.add_option_group(hagroup)
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. Defaults to acme')
 	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] or 80 otherwise')
-	parser.add_option('-u', '--clouduser', dest='clouduser', default='root', type='string', help='User to SSH test. Defaults to root')
+	parser.add_option('-u', '--clouduser', dest='clouduser', default='root', type='string', help='User for Check_SSH test. Defaults to root')
 	parser.add_option('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Verbose mode. Defaults to False')
 	parser.add_option('-e', '--embedded', dest='embedded', default=True, action='store_true', help='Create a dedicated tenant to hold all tests. Defaults to True')
 	(options, args)  = parser.parse_args()
@@ -3379,6 +3651,10 @@ if __name__ == "__main__":
 	cpus             = options.cpus
 	disk             = options.disk
 	embedded         = options.embedded
+	haserver	 = options.haserver
+	hauser		 = options.hauser
+	hapassword	 = options.hapassword
+	haprivatekey	 = options.haprivatekey
 	try:
 		keystonecredentials = _keystonecreds()
 		novacredentials     = _novacreds()
@@ -3391,6 +3667,7 @@ if __name__ == "__main__":
 		heattests           = os.environ['OS_HEAT_TESTS'].split(',')         if os.environ.has_key('OS_HEAT_TESTS')          else heatdefaulttests
 		swifttests          = os.environ['OS_SWIFT_TESTS'].split(',')        if os.environ.has_key('OS_SWIFT_TESTS')         else swiftdefaulttests
 		ceilometertests     = os.environ['OS_CEILOMETER_TESTS'].split(',')   if os.environ.has_key('OS_CEILOMETER_TESTS')    else ceilometerdefaulttests
+		hatests             = os.environ['OS_HA_TESTS'].split(',')           if os.environ.has_key('OS_HA_TESTS')            else hadefaulttests
 		imagepath           = os.environ['OS_GLANCE_IMAGE_PATH']             if os.environ.has_key('OS_GLANCE_IMAGE_PATH')   else None
 		volumetype          = os.environ['OS_CINDER_VOLUME_TYPE']            if os.environ.has_key('OS_CINDER_VOLUME_TYPE')  else None
 		externalnet         = os.environ['OS_NEUTRON_EXTERNALNET']           if os.environ.has_key('OS_NEUTRON_EXTERNALNET') else None
@@ -3398,13 +3675,17 @@ if __name__ == "__main__":
 		ram                 = int(os.environ['OS_NOVA_RAM'])                 if os.environ.has_key('OS_NOVA_RAM')            else ram
 		cpus                = int(os.environ['OS_NOVA_CPUS'])                if os.environ.has_key('OS_NOVA_CPUS')           else cpus
 		disk                = int(os.environ['OS_NOVA_DISK'])                if os.environ.has_key('OS_NOVA_DISK')           else disk
+		amqp                = int(os.environ['OS_NOVA_AMQP'])                if os.environ.has_key('OS_NOVA_AMQP')           else 'rabbitmq-server'
+		haserver            = os.environ['OS_HA_SERVER']                     if os.environ.has_key('OS_HA_SERVER')           else haserver
+		hauser              = os.environ['OS_HA_USER']                       if os.environ.has_key('OS_HA_USER')             else hauser
+		hapassword          = os.environ['OS_HA_PASSWORD']                   if os.environ.has_key('OS_HA_PASSWORD')         else hapassword
+		haprivatekey        = os.environ['OS_HA_PRIVATEKEY']                 if os.environ.has_key('OS_HA_PRIVATEKEY')       else haprivatekey
 	except Exception as e:
 		print "Missing environment variables. source your openrc file first"
-		print e
 	    	os._exit(1)
-	if listservices:
+	if listservices or testha:
 		embedded = False
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk)
+	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, amqp=amqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey)
 	#testing
 	if listservices:
 		if o.admin:

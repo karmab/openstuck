@@ -61,7 +61,7 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - OS_SWIFT_TIMEOUT		
 - OS_HEAT_TIMEOUT		
 - OS_NEUTRON_EXTERNALNET
--
+- OS_HA_AMQP
 
 
 ##TODO LIST 
@@ -77,12 +77,12 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - create a specific flavor during nova testing instead of hardcoded relying on m1.tiny
 - run the Check_Console later so it can provide a more interesting output (typically check that hostname of the vm shows up there)
 - adjust the sizes of the flavours to run nova tests and report ERRORS for Create_Server instead of just saying it timedout
-
+- Create a dedicated metadata check with a script that does a echo in /dev/ttyS0
 
 ##Known bugs
 - Create_Backup race condition giving a "Invalid volume: Volume to be backed up must be available" message
 - Race condition when creating a lot of network giving the error No available network found in maximum allowed attempts .see https://bugzilla.redhat.com/show_bug.cgi?id=1194432. Note its related to concurrency as it doesnt occur when running sequential tests
-- Add_FlavorAccess and Remove_FlavorAccess tests seem to be bugy
+- Add_FlavorAccess and Remove_FlavorAccess tests might not work as expected 
 - When testing on juno, it is not possible for an user to create public images, ( can be worked aroune editing /etc/glance/policy.json), so we switch to private images 
 
 ##Problems?
