@@ -87,6 +87,7 @@ class Openstuck():
 		self.debug            = debug
 		self.novacredentials  = novacredentials
 		self.embedded	      = embedded
+		self.embeddedobjects  = {}
 		self.externalnet      = externalnet
 		try:
 			self.keystone = keystoneclient.Client(**keystonecredentials)
@@ -140,6 +141,7 @@ class Openstuck():
         	self.subnet            = "%ssubnet" % project
         	self.router            = "%srouter" % project
         	self.server            = "%sserver" % project
+        	self.volumeserver      = "%svolumeserver" % project
         	self.flavor            = "%sflavor" % project
         	self.keypair           = "%skeypair" % project
         	self.stack             = "%sstack" % project
@@ -185,43 +187,42 @@ class Openstuck():
 		cinder            = cinderclient.Client(**cindercredentials)
                 neutronendpoint   = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron           = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
-		flavors           = [ flavor for flavor in nova.flavors.list() if "%s-flavor" % self.project in flavor.name ]
-		if len(flavors) != 2:
+		if not self.embeddedobjects.has_key('flavor'):
 			flavor1 = nova.flavors.create(name=novaflavor1,ram=self.ram,vcpus=self.cpus,disk=self.disk)
 			flavor2 = nova.flavors.create(name=novaflavor2,ram=self.ram*2,vcpus=self.cpus*2,disk=self.disk)
-		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakey]
-		if len(keypairs) != 1:
+			self.embeddedobjects['flavor']=[flavor1.id, flavor2.id]
+		if not self.embeddedobjects.has_key('keypair'):
 			keypair = nova.keypairs.create(novakey)
 			self.private_key = keypair.private_key
-		images = [ image for image in glance.images.list() if image.name == novaimage]
-		if len(images) != 1:
+			self.embeddedobjects['keypair'] = keypair
+		if not self.embeddedobjects.has_key('image'):
 			image           = glance.images.create(name=novaimage, visibility='private', disk_format='qcow2',container_format='bare')
+			self.embeddedobjects['image'] = image.id
 			with open(imagepath,'rb') as data:
 				glance.images.upload(image.id, data)
 			available = o._available(glance.images, image.id, timeout,status='active')
 			if not available:
 				raise Exception("Timeout waiting for available status")
-			volumes         = [ volume for volume in cinder.volumes.list() if  volume.name == novavolume]
-			if len(volumes) != 1:
+			if not self.embeddedobjects.has_key('volume'):
 				volume = cinder.volumes.create(name=novavolume,size=self.imagesize, imageRef=image.id)
+				self.embeddedobjects['volume'] = volume.id
 				available = o._available(cinder.volumes, volume.id, timeout,status='available')
 				if not available:
 					raise Exception("Timeout waiting for available status")
 					
-		novanets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == novanet ]
-		if not novanets:
+		if not self.embeddedobjects.has_key('network'):
 			network         = {'name': novanet, 'admin_state_up': True, 'tenant_id': tenantid}
 			network         = neutron.create_network({'network':network})
 			networkid       = network['network']['id']
+			self.embeddedobjects['network'] = networkid
 		else:
-			networkid  = novanets[0]['id']
-		novasubnets     = [ n for n in neutron.list_subnets()['subnets'] if n['name'] == novasubnet ]
-		if not novasubnets:
+			networkid  = self.embeddedobjects['network']
+		if not self.embeddedobjects.has_key('subnet'):
 			subnet          = {'name':novasubnet, 'network_id':networkid,'ip_version':4,"cidr":'10.0.0.0/24', 'tenant_id': tenantid}
 			subnet          = neutron.create_subnet({'subnet':subnet})
 			subnetid        = subnet['subnet']['id']
-		novarouters     = [ r for r in neutron.list_routers()['routers'] if n['name'] == novarouter ]
-		if not novarouters:
+			self.embeddedobjects['subnet'] = subnetid
+		if not self.embeddedobjects.has_key('router'):
 			router          = {'name':novarouter, 'tenant_id': tenantid}
 			if externalnet is not None:
 				externalnets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == externalnet ]
@@ -230,25 +231,19 @@ class Openstuck():
 			        	router['external_gateway_info']= {"network_id": externalid, "enable_snat": True}
 			router    = neutron.create_router({'router':router})
 			routerid  = router['router']['id']
+			self.embeddedobjects['router'] = router['router']
 			neutron.add_interface_router(routerid,{'subnet_id':subnetid } )
 		if self.embedded:
 			securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'] == 'default' and s['tenant_id'] == tenantid]
 			if securitygroups:
         			securitygroup=securitygroups[0]
         			securitygroupid=securitygroup['id']
+				self.embeddedobjects['securitygroup'] = securitygroupid
         			sshrule = {'security_group_rule': {'direction': 'ingress','security_group_id': securitygroupid, 'port_range_min': '22' ,'port_range_max': '22','protocol': 'tcp','remote_group_id': None,'remote_ip_prefix': '0.0.0.0/0'}}
         			neutron.create_security_group_rule(sshrule)
 		return 
 	def _novaafter(self):
 		tenantid          = self.auth_tenant_id
-		novaflavor1	= "%s-flavor1" % self.project
-		novaflavor2	= "%s-flavor2" % self.project
-		novaimage	= "%s-image" % self.project
-		novavolume	= "%s-volume" % self.project
-		novakey	        = "%s-key" % self.project
-		novanet		= "%s-net" % self.project
-		novasubnet	= "%s-subnet" % self.project
-		novarouter	= "%s-router" % self.project
                 keystone        = self.keystone
                 glanceendpoint  = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
@@ -258,50 +253,55 @@ class Openstuck():
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
 		nova            = novaclient.Client('2', **self.novacredentials)
-		flavors         = [ flavor for flavor in nova.flavors.list() if flavor.name == novaflavor1 or flavor.name == novaflavor2]
-		for flavor in flavors:
-			nova.flavors.delete(flavor.id)
-		keypairs        = [ keypair for keypair in nova.keypairs.list() if keypair.name == novakey]
-		for keypair in keypairs:
+		if self.embeddedobjects.has_key('flavor'):
+			flavors = self.embeddedobjects['flavor']
+			for flavorid in flavors:
+				nova.flavors.delete(flavorid)
+		if self.embeddedobjects.has_key('keypair'):
+			keypair = self.embeddedobjects['keypair']
 			keypair.delete()
-		images = [ image for image in glance.images.list() if image.name == novaimage]
-		for image in images:
-       	 		imageid = image.id
+		if self.embeddedobjects.has_key('image'):
+			imageid = self.embeddedobjects['image']
 			glance.images.delete(imageid)
-		routers = [ router for router in neutron.list_routers()['routers'] if router['name'] == novarouter]
-		for router in routers:
-        		routerid = router['id']
-                        if router['external_gateway_info']:
-                        	neutron.remove_gateway_router(routerid)
-                        ports = [ p for p in neutron.list_ports()['ports'] if p['device_id'] == routerid ]
-                        for port in ports:
+		if self.embeddedobjects.has_key('router'):
+			router = self.embeddedobjects['router']
+			routerid  = router['id']
+                       	if router['external_gateway_info']:
+				neutron.remove_gateway_router(routerid)
+                       	ports = [ p for p in neutron.list_ports()['ports'] if p['device_id'] == routerid ]
+                       	for port in ports:
 				portid = port['id']
-                                neutron.remove_interface_router(routerid, {'port_id':portid})
+                       	        neutron.remove_interface_router(routerid, {'port_id':portid})
 			neutron.delete_router(routerid)
-		subnets = [ subnet for subnet in neutron.list_subnets()['subnets'] if subnet['name'] == novasubnet]
-		for subnet in subnets:
-        		subnetid = subnet['id']
-			deleted = False
-			while not deleted:
-				try:
-					neutron.delete_subnet(subnetid)
-					deleted = True
-				except:
-					continue
-		networks = [ network for network in neutron.list_networks()['networks'] if network['name'] == novanet]
-		for network in networks:
-        		networkid = network['id']
+		if self.embeddedobjects.has_key('subnet') and self.embeddedobjects.has_key('network'):
+			networkid = self.embeddedobjects['network']
+			subnetid = self.embeddedobjects['subnet']
+			ports = [ port for port in neutron.list_ports()['ports'] if port['network_id'] == networkid ]
+			for port in ports:
+        			portid = port['id']
+        			neutron.delete_port(portid)			
+			neutron.delete_subnet(subnetid)
+			#deleted = False
+			#while not deleted:
+			#	try:
+			#		neutron.delete_subnet(subnetid)
+			#		deleted = True
+			#	except Exception as e:
+			#		print e
+			#		continue
+		if self.embeddedobjects.has_key('network'):
+			networkid = self.embeddedobjects['network']
 			neutron.delete_network(networkid)
-		if self.embedded:
-			securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'] == 'default' and s['tenant_id'] == tenantid]
-			if securitygroups:
-        			securitygroup   = securitygroups[0]
-        			securitygroupid = securitygroup['id']
+		if self.embeddedobjects.has_key('securitygroup'):
+				securitygroupid = self.embeddedobjects['securitygroup']
 				neutron.delete_security_group(securitygroupid)
-		volumes = [ volume for volume in cinder.volumes.list() if volume.name == novavolume]
-		for volume in volumes:
-       	 		volumeid = volume.id
-			cinder.volumes.delete(volumeid)
+		if self.embeddedobjects.has_key('volume'):
+				volumeid= self.embeddedobjects['volume']
+				available = o._available(cinder.volumes, volumeid, timeout)
+                        	if not available:
+                                	raise Exception("Timeout waiting for available status")
+				cinder.volumes.delete(volumeid)
+
 	def _clean(self):
 		if self.embedded and self.admin:
 			tenant = self.keystone.tenants.find(name=self.auth_tenant_name)
@@ -1510,6 +1510,9 @@ class Openstuck():
 			return
 		volumename = volume.name
 		try:
+                        available = o._available(cinder.volumes, newvolume.id, timeout)
+                        if not available:
+                                raise Exception("Timeout waiting for available status")
 			volume.delete()
 			results = 'OK'
 			deleted = o._deleted(cinder.volumes, volume.id, timeout)
@@ -1560,7 +1563,6 @@ class Openstuck():
 			return
 		try:
 			cinder.volumes.extend(volume.id,2)
-			#cinder.volumes.get(volume.id).size != 2
 			available = o._available(cinder.volumes, volume.id, timeout)
                         if not available:
                                 raise Exception("Timeout waiting for available status")
@@ -3271,7 +3273,7 @@ class Openstuck():
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
 			for step in range(repeat):
-				jobs = [ multiprocessing.Process(target=self.Create_VolumeServer, args=(nova, "%s-%d-%d" % (self.server, step, number), volumeservers, errors, output, self.verbose, timeout, )) for number in range(concurrency) ]
+				jobs = [ multiprocessing.Process(target=self.Create_VolumeServer, args=(nova, "%s-%d-%d" % (self.volumeserver, step, number), volumeservers, errors, output, self.verbose, timeout, )) for number in range(concurrency) ]
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
