@@ -1370,7 +1370,6 @@ class Openstuck():
 			server.delete()
 			results = 'OK'
 			deleted = o._deleted(nova.servers, server.id, timeout)
-			print deleted
 			if not deleted:
 				results = 'Timeout waiting for deletion'
 				errors.append('Delete_Server')
