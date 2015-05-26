@@ -165,7 +165,7 @@ class Openstuck():
 		return None
 
 	def _novabefore(self, externalnet):
-		tenantid          = self.auth_tenant_id
+		tenantid          = self.auth_tenant_id	
 		novaflavor1	  = "%s-flavor1" % self.project
 		novaflavor2	  = "%s-flavor2" % self.project
 		novaimage	  = "%s-image" % self.project
@@ -180,8 +180,8 @@ class Openstuck():
 		nova              = novaclient.Client('2', **self.novacredentials)
                 glanceendpoint    = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
                 glance            = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
-		cindercredentials = novacredentials
-		cindercredentials['project_id'] = self.project
+		cindercredentials = self.novacredentials
+		cindercredentials['project_id'] = self.auth_tenant_name
 		cinder            = cinderclient.Client(**cindercredentials)
                 neutronendpoint   = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron           = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
@@ -228,13 +228,13 @@ class Openstuck():
 			router    = neutron.create_router({'router':router})
 			routerid  = router['router']['id']
 			neutron.add_interface_router(routerid,{'subnet_id':subnetid } )
-		#add ssh securiy group
-		securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'] == 'default' and s['tenant_id'] == tenantid]
-		if securitygroups:
-        		securitygroup=securitygroups[0]
-        		securitygroupid=securitygroup['id']
-        		sshrule = {'security_group_rule': {'direction': 'ingress','security_group_id': securitygroupid, 'port_range_min': '22' ,'port_range_max': '22','protocol': 'tcp','remote_group_id': None,'remote_ip_prefix': '0.0.0.0/0'}}
-        		neutron.create_security_group_rule(sshrule)
+		if self.embedded:
+			securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'] == 'default' and s['tenant_id'] == tenantid]
+			if securitygroups:
+        			securitygroup=securitygroups[0]
+        			securitygroupid=securitygroup['id']
+        			sshrule = {'security_group_rule': {'direction': 'ingress','security_group_id': securitygroupid, 'port_range_min': '22' ,'port_range_max': '22','protocol': 'tcp','remote_group_id': None,'remote_ip_prefix': '0.0.0.0/0'}}
+        			neutron.create_security_group_rule(sshrule)
 		return 
 	def _novaafter(self):
 		tenantid          = self.auth_tenant_id
@@ -249,8 +249,8 @@ class Openstuck():
                 keystone        = self.keystone
                 glanceendpoint  = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
                 glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
-		cindercredentials = novacredentials
-		cindercredentials['project_id'] = self.project
+		cindercredentials = self.novacredentials
+		cindercredentials['project_id'] = self.auth_tenant_name
 		cinder            = cinderclient.Client(**cindercredentials)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
@@ -265,10 +265,6 @@ class Openstuck():
 		for image in images:
        	 		imageid = image.id
 			glance.images.delete(imageid)
-		volumes = [ volume for volume in cinder.volumes.list() if volume.name == novavolume]
-		for volume in volumes:
-       	 		volumeid = volume.id
-			cinder.volumes.delete(volumeid)
 		routers = [ router for router in neutron.list_routers()['routers'] if router['name'] == novarouter]
 		for router in routers:
         		routerid = router['id']
@@ -287,12 +283,16 @@ class Openstuck():
 		for network in networks:
         		networkid = network['id']
 			neutron.delete_network(networkid)
-		#add ssh securiy group
-		securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'] == 'default' and s['tenant_id'] == tenantid]
-		if securitygroups:
-        		securitygroup   = securitygroups[0]
-        		securitygroupid = securitygroup['id']
-			neutron.delete_security_group(securitygroupid)
+		if self.embedded:
+			securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'] == 'default' and s['tenant_id'] == tenantid]
+			if securitygroups:
+        			securitygroup   = securitygroups[0]
+        			securitygroupid = securitygroup['id']
+				neutron.delete_security_group(securitygroupid)
+		volumes = [ volume for volume in cinder.volumes.list() if volume.name == novavolume]
+		for volume in volumes:
+       	 		volumeid = volume.id
+			cinder.volumes.delete(volumeid)
 	def _clean(self):
 		if self.embedded and self.admin:
 			tenant = self.keystone.tenants.find(name=self.auth_tenant_name)
@@ -807,6 +807,8 @@ class Openstuck():
 				image       = nova.images.find(name=image)
 				network     = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
 				networkid   = nova.networks.find(label=network).id
+				flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
+				flavor  = nova.flavors.find(name=flavor)
 			else:
 				flavorname  = "%s-flavor1" % self.project
 				flavor      = nova.flavors.find(name=flavorname)
@@ -814,10 +816,7 @@ class Openstuck():
 				imagename   = "%s-image" % self.project
 				image       = nova.images.find(name=imagename)
 				networkname = "%s-net" % self.project
-				#networkid   = nova.networks.find(label='novanet').id
 				networkid   = nova.networks.find(label=networkname).id
-				#flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
-				#flavor  = nova.flavors.find(name=flavor)
 			nics = [{'net-id': networkid}]
 			userdata = "#!/bin/bash\necho METADATA >/dev/ttyS0"
 			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
@@ -856,7 +855,8 @@ class Openstuck():
 				networkid   = nova.networks.find(label=networkname).id
 			nics = [{'net-id': networkid}]
 			userdata = "#!/bin/bash\necho METADATA >/dev/ttyS0"
-			newserver = nova.servers.create(name=server, image=volume, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
+			mapping = {'vda':volume.id}
+			newserver = nova.servers.create(name=server, image='', block_device_mapping=mapping, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
 			servers.append(newserver.id)
                         active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
                         if not active:
@@ -3846,12 +3846,13 @@ if __name__ == "__main__":
 				o._novaafter()
 				o._clean()
 				sys.exit(1)
-			try:
-				o._novabefore(externalnet)
-			except Exception as e:	
-				print e
-				o._novaafter()
-				o._clean()
+		try:
+			o._novabefore(externalnet)
+		except Exception as e:	
+			print e
+			o._novaafter()
+			o._clean()
+			sys.exit(1)
 		flavors, keypairs, servers, volumeservers, floatings = o.novatest()
 	if testheat or testall:
 		if o.embedded:
@@ -3886,8 +3887,8 @@ if __name__ == "__main__":
 			print "Testing Keystone..."
 			print "Final report:"
 		print o._printreport()
-		if embedded:	
-			if testnova or testheat:
-				o._novaafter()
-			if o.admin:
-				o._clean()
+		#if embedded:	
+		if testnova or testheat:
+			o._novaafter()
+		if o.admin:
+			o._clean()
