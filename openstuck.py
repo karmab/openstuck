@@ -281,7 +281,13 @@ class Openstuck():
 		subnets = [ subnet for subnet in neutron.list_subnets()['subnets'] if subnet['name'] == novasubnet]
 		for subnet in subnets:
         		subnetid = subnet['id']
-			neutron.delete_subnet(subnetid)
+			deleted = False
+			while not deleted:
+				try:
+					neutron.delete_subnet(subnetid)
+					deleted = True
+				except:
+					continue
 		networks = [ network for network in neutron.list_networks()['networks'] if network['name'] == novanet]
 		for network in networks:
         		networkid = network['id']
