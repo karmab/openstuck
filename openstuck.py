@@ -51,7 +51,7 @@ novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Cre
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Update_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
-hadefaulttests		 = ['Fence_Controller', 'Fence_Compute', 'Fence_LoadBalancer', 'Fence_Controller', 'Stop_Mysql', 'Stop_Amqp', 'Stop_Mongodb', 'Stop_Keystone', 'Stop_Glance', 'Stop_Cinder', 'Stop_Neutron', 'Stop_Nova', 'Stop_Heat', 'Stop_Ceilometer', 'Stop_Swift']
+hadefaulttests		 = ['Fence_Node', 'Stop_Mysql', 'Stop_Amqp', 'Stop_Mongodb', 'Stop_Keystone', 'Stop_Glance', 'Stop_Cinder', 'Stop_Neutron', 'Stop_Nova', 'Stop_Heat', 'Stop_Ceilometer', 'Stop_Swift']
 
 def _keystonecreds():
 	keystoneinfo                = {}
@@ -79,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',amqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',amqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -159,6 +159,11 @@ class Openstuck():
 		self.hauser	      = hauser
 		self.hapassword	      = hapassword
 		self.haprivatekey     = haprivatekey
+		self.hafenceservers   = hafenceservers
+		self.hafencenames     = hafencenames
+		self.hafenceusers     = hafenceusers
+		self.hafencepasswords = hafencepasswords
+		self.hafencemodes     = hafencemodes
 	def _getfloatingip(self, server):
 		for net in server.addresses:
         		for info in server.addresses[net]:
@@ -2072,14 +2077,45 @@ class Openstuck():
 
 	def _printreport(self):
 		return self.output
-	def listservices(self):
-		keystone = self.keystone
-		output = PrettyTable(['Service', 'Type', 'Status'])
-		output.align['Service'] = "l"
-		for service in sorted(keystone.services.list(), key = lambda s: s.name):
-			status = 'Available' if service.enabled else 'N/A'
-			output.add_row([service.name, service.type, status])
-		return output
+	def listservices(self, verbose=True):
+		try:
+			keystone = self.keystone
+			output = PrettyTable(['Service', 'Type', 'Status'])
+			output.align['Service'] = "l"
+			for service in sorted(keystone.services.list(), key = lambda s: s.name):
+				status = 'Available' if service.enabled else 'N/A'
+				output.add_row([service.name, service.type, status])
+			if verbose:
+				print output
+			return True
+		except:
+			return False
+	def _fence(self,server, user, password, name, mode, timeout=20):
+		success = False
+		if server is None or user is None or password is None or mode is None:
+			print 'Missing environment FENCING variables'
+			return False
+		if mode == 'rhevm':
+			fencecmd = "fence_rhevm -z -a %s -l %s -p %s -n %s --ssl-insecure -o" % (server, user, password, name)
+			startcmd = "%s on" % fencecmd
+			stopcmd  = "%s off" % fencecmd 
+		#ADD MORE FENCING OPTION
+		os.popen(stopcmd)
+		timein = 0
+                while not success:
+                        timein += 0.2
+                        if timein > timeout :
+                                success = False
+				os.popen(startcmd)
+                                return False
+                        time.sleep(0.2)
+			running = self.listservices(verbose=False)
+                        if running:
+                                success = True
+                                break
+		os.popen(startcmd)
+                return success
+
 	def keystoneclean(self, tenants, users, roles):
 		if self.verbose:
 			print "Cleaning Keystone..."
@@ -3520,60 +3556,28 @@ class Openstuck():
 		tests = self.hatests
 		if self.verbose:
 			print "Testing HA..."
-		server, username, password = '192.168.5.2', 'root', 'unix1234'
 		privatekey = None
 
-		test    = 'Fence_Controller'
+		test    = 'Fence_Node'
 		reftest = test
 		if test in tests:
 			starttime = time.time()
 			if self.verbose:
 				print "Running Fence_Controller"
-			endtime = time.time()
-			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
-				print "%s  %s seconds" % (test, runningtime)
-			#self._report(category, test, concurrency, repeat, runningtime, errors)
-			#self._addrows(verbose, output)
-
-		test    = 'Fence_Compute'
-		reftest = test
-		if test in tests:
-			starttime = time.time()
-			if self.verbose:
-				print "Running Fence_Compute"
-			endtime = time.time()
-			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
-				print "%s  %s seconds" % (test, runningtime)
-			#self._report(category, test, concurrency, repeat, runningtime, errors)
-			#self._addrows(verbose, output)
-
-		test    = 'Fence_LoadBalancer'
-		reftest = test
-		if test in tests:
-			starttime = time.time()
-			if verbose:
-				print "Running Fence_LoadBalancer"
-			endtime = time.time()
-			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
-				print "%s  %s seconds" % (test, runningtime)
-			#self._report(category, test, concurrency, repeat, runningtime, errors)
-			#self._addrows(verbose, output)
-
-		test    = 'Fence_Controller'
-		reftest = test
-		if test in tests:
-			starttime = time.time()
-			if verbose:
-				print "Running Fence_Controller"
-			endtime = time.time()
-			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
-				print "%s  %s seconds" % (test, runningtime)
-			#self._report(category, test, concurrency, repeat, runningtime, errors)
-			#self._addrows(verbose, output)
+			for index, server in enumerate(self.hafenceservers):
+				user     = self.hafenceusers[index]
+				password = self.hafencepasswords[index]
+				mode     = self.hafencemodes[index]
+				name     = self.hafencenames[index]
+				starttime = time.time()
+				success = o._fence(server, user, password, name, mode, timeout=timeout)
+				errors = [] if success else [test]
+				endtime = time.time()
+				runningtime = "%0.3f" % (endtime -starttime)
+				if verbose:
+					print "%s  %s seconds" % (test, runningtime)
+				self._report(category, "%s on %s" % (test,name) , '1', '1', runningtime, errors)
+				#self._addrows(verbose, output)
 
 		test    = 'Stop_Mysql'
 		reftest = test
@@ -3828,17 +3832,23 @@ if __name__ == "__main__":
 		hauser              = os.environ['OS_HA_USER']                       if os.environ.has_key('OS_HA_USER')             else hauser
 		hapassword          = os.environ['OS_HA_PASSWORD']                   if os.environ.has_key('OS_HA_PASSWORD')         else hapassword
 		haprivatekey        = os.environ['OS_HA_PRIVATEKEY']                 if os.environ.has_key('OS_HA_PRIVATEKEY')       else haprivatekey
+		hafenceservers      = os.environ['OS_HA_FENCESERVERS'].split(',')    if os.environ.has_key('OS_HA_FENCESERVERS')     else None
+		hafencenames        = os.environ['OS_HA_FENCENAMES'].split(',')      if os.environ.has_key('OS_HA_FENCENAMES')       and hafenceservers is not None else None
+		hafenceusers	    = os.environ['OS_HA_FENCEUSERS'].split(',')	     if os.environ.has_key('OS_HA_FENCEUSERS')       and hafenceservers is not None else None
+		hafencepasswords    = os.environ['OS_HA_FENCEPASSWORDS'].split(',')  if os.environ.has_key('OS_HA_FENCEPASSWORDS')   and hafenceservers is not None  else None
+		hafencemodes	    = os.environ['OS_HA_FENCEMODES'].split(',')	     if os.environ.has_key('OS_HA_FENCEMODES')       and hafenceservers is not None else None
+
 	except Exception as e:
 		print "Missing environment variables. source your openrc file first"
 		print e
 	    	os._exit(1)
 	if listservices or testha:
 		embedded = False
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, amqp=amqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey)
+	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, amqp=amqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes )
 	#testing
 	if listservices:
 		if o.admin:
-			print o.listservices()
+			o.listservices()
 		else:
 			print 'Admin required to list services'
 	    	sys.exit(0)

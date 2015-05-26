@@ -11,3 +11,16 @@ export OS_CINDER_TESTS=Create_Volume,Create_Backup,Create_Snapshot,Create_Volume
 export OS_CINDER_TIMEOUT=80
 export OS_NEUTRON_EXTERNALNET=public
 export OS_GLANCE_IMAGE_SIZE=1
+
+#FENCING EXAMPLE
+#export OS_HA_FENCEMODES='rhevm'
+#export OS_HA_FENCESERVERS='192.168.6.1'
+#export OS_HA_FENCENAMES='manageiq'
+#export OS_HA_FENCEUSERS='admin@internal'
+#export OS_HA_FENCEPASSWORDS='prout'
+#export OS_HA_TESTS='Fence_Node'
+export OS_HA_FENCEMODES='rhevm,rhevm'
+export OS_HA_FENCESERVERS='192.168.6.1,192.168.6.1'
+export OS_HA_FENCENAMES='manageiq,mageiq'
+export OS_HA_FENCEUSERS='admin@internal,admin@internal'
+export OS_HA_FENCEPASSWORDS='prout,prout'
