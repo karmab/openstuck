@@ -204,6 +204,9 @@ class Openstuck():
 			volumes         = [ volume for volume in cinder.volumes.list() if  volume.name == novavolume]
 			if len(volumes) != 1:
 				volume = cinder.volumes.create(name=novavolume,size=self.imagesize, imageRef=image.id)
+				available = o._available(cinder.volumes, volume.id, timeout,status='available')
+				if not available:
+					raise Exception("Timeout waiting for available status")
 					
 		novanets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == novanet ]
 		if not novanets:
@@ -837,11 +840,12 @@ class Openstuck():
 
 	def Create_VolumeServer(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
+		cinder = cinderclient.Client(**self.novacredentials)
 		try:
 			if not embedded:
 				keypairname = None
 				volume      = os.environ['OS_NOVA_VOLUME']   if os.environ.has_key('OS_NOVA_VOLUME')   else 'cirros'
-				volume      = nova.volumes.find(name=volume)
+				volume      = cinder.volumes.find(name=volume)
 				network     = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
 				networkid   = nova.networks.find(label=network).id
 			else:
@@ -849,8 +853,7 @@ class Openstuck():
 				flavor      = nova.flavors.find(name=flavorname)
 				keypairname = "%s-key" % self.project
 				volumename  = "%s-volume" % self.project
-				volume      = nova.volumes.find(name=volumename)
-				print volume
+				volume      = cinder.volumes.find(name=volumename)
 				networkname = "%s-net" % self.project
 				networkid   = nova.networks.find(label=networkname).id
 			nics = [{'net-id': networkid}]
@@ -1361,6 +1364,7 @@ class Openstuck():
 			server.delete()
 			results = 'OK'
 			deleted = o._deleted(nova.servers, server.id, timeout)
+			print deleted
 			if not deleted:
 				results = 'Timeout waiting for deletion'
 				errors.append('Delete_Server')
