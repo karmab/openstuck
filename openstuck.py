@@ -1535,7 +1535,7 @@ class Openstuck():
 			return
 		volumename = volume.name
 		try:
-                        available = o._available(cinder.volumes, newvolume.id, timeout)
+                        available = o._available(cinder.volumes, volume.id, timeout)
                         if not available:
                                 raise Exception("Timeout waiting for available status")
 			volume.delete()
