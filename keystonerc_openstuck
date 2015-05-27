@@ -1,26 +1,143 @@
-export OS_GLANCE_IMAGE_PATH="/home/kboumedh/Downloads/cirros-0.3.3-x86_64-disk.img"
-export Create_Tenant=5:5
-export Create_Alarm=8:5
-export Create_Volume=3:1
-export Create_Backup=2:3
-export Create_Backup=1:1
-export Create_Container=20:3
-export OS_TIMEOUT=80
-#export OS_CINDER_TESTS=Create_Volume,Create_Backup,Create_Snapshot,List_Volume,List_Backup,List_Snapshot,Delete_Volume,Delete_Backup,Delete_Snapshot
-export OS_CINDER_TESTS=Create_Volume,Create_Backup,Create_Snapshot,Create_Volume_From_Snapshot,List_Volume,List_Backup,List_Snapshot,Delete_Backup,Delete_Snapshot,Delete_Volume
-export OS_CINDER_TIMEOUT=80
-export OS_NEUTRON_EXTERNALNET=public
-export OS_GLANCE_IMAGE_SIZE=1
 
-#FENCING EXAMPLE
-#export OS_HA_FENCEMODES='rhevm'
-#export OS_HA_FENCESERVERS='192.168.6.1'
-#export OS_HA_FENCENAMES='manageiq'
-#export OS_HA_FENCEUSERS='admin@internal'
-#export OS_HA_FENCEPASSWORDS='prout'
-#export OS_HA_TESTS='Fence_Node'
-export OS_HA_FENCEMODES='rhevm,rhevm'
-export OS_HA_FENCESERVERS='192.168.6.1,192.168.6.1'
-export OS_HA_FENCENAMES='manageiq,mageiq'
-export OS_HA_FENCEUSERS='admin@internal,admin@internal'
-export OS_HA_FENCEPASSWORDS='prout,prout'
+# type of endpoint to use for test
+exportOS_ENDPOINT_TYPE=publicURL
+
+# default tests 
+export OS_KEYSTONE_TESTS=Create_Tenant,Create_User,Create_Role,Add_Role,ListRole,Authenticate_User,Delete_User,Delete_Role,Delete_Tenant
+export OS_GLANCE_TESTS=Create_Image,List_Image,Delete_Image
+export OS_CINDER_TESTS=Create_Volume,List_Volume,Create_Backup,List_Backup,Restore_Backup,Delete_Backup,Create_Snapshot,List_Snapshot,Delete_Snapshot,Delete_Volume,Reach_VolumeQuota,Reach_StorageQuota
+export OS_NEUTRON_TESTS=Create_SecurityGroup,Create_Network,Create_Subnet,Create_Router,List_Network,List_Subnet,List_Router,Delete_Router,Delete_Subnet,Delete_Network,Delete_SecurityGroup
+export OS_NOVA_TESTS=Create_Flavor,List_Flavor,Delete_Flavor,Create_KeyPair,List_KeyPair,Delete_KeyPair,Create_Server,List_Server,Check_Console,Check_Novnc,Check_Connectivity,Add_FloatingIp,Check_SSH,Grow_Server,Shrink_Server,Migrate_Server,Create_VolumeServer,Create_SnapshotServer,Delete_Server
+export OS_HEAT_TESTS=Create_Stack,List_Stack,Update_Stack,Delete_Stack
+export OS_CEILOMETER_TESTS=Create_Alarm,List_Alarm,List_Meter,Delete_Alarm
+export OS_SWIFT_TESTS=Create_Container,List_Container,Delete_Container
+export OS_HA_TESTS=Fence_Node,Stop_Mysql,Stop_Amqp,Stop_Mongodb,Stop_Keystone,Stop_Glance,Stop_Cinder,Stop_Neutron,Stop_Nova,Stop_Heat,Stop_Ceilometer,Stop_Swift
+
+# timeout
+# generic
+export OS_TIMEOUT=80
+# per category timeout
+export OS_KEYSTONE_TIMEOUT=80
+export OS_GLANCE_TIMEOUT=80
+export OS_CINDER_TIMEOUT=80
+export OS_NEUTRON_TIMEOUT=80
+export OS_NOVA_TIMEOUT=80
+export OS_HEAT_TIMEOUT=80
+export OS_SWIFT_TIMEOUT=80
+export OS_CEILOMETER_TIMEOUT=80
+export OS_HA_TIMEOUT=80
+
+# GLANCE
+export OS_GLANCE_IMAGE_PATH=/tmp/cirros.img
+export OS_GLANCE_IMAGE_SIZE=10
+
+# CINDER 
+export OS_CINDER_VOLUME_TYPE=ceph
+
+# NOVA
+#existing objects to use for NOVA testing
+export OS_NOVA_IMAGE=cirros
+export OS_NOVA_NETWORK=private
+export OS_NOVA_FLAVOR=m1.tiny
+export OS_NOVA_SNAPSHOT=snapshot
+export OS_NOVA_VOLUME=cirros
+export OS_NEUTRON_EXTERNALNET=public
+export OS_NOVA_RAM=512     
+export 'OS_NOVA_CPUS=2   
+export OS_NOVA_DISK=10      
+export OS_NOVA_AMQP=qpid
+
+# SWIFT
+#object path to upload in swift test
+export OS_SWIFT_OBJECT_PATH=/tmp/obj1
+
+# HA
+export OS_HA_SERVER=192.168.2.1
+export OS_HA_USER=root                       
+export OS_HA_PASSWORD=coco                 
+export OS_HA_PRIVATEKEY=/root/.ssh/id_rsa         
+export on['OS_HA_FENCEWAIT=20             
+export OS_HA_FENCESERVERS=192.168.1.2,192.168.1.3,192.168.1.4
+export OS_HA_FENCENAMES=controller1,controller2,controller3    
+export OS_HA_FENCEUSERS=root,root,root
+export OS_HA_FENCEPASSWORDS=aa,bb,cc
+export OS_HA_FENCEMODES=ilo2,ilo2,ilo2    
+
+# CONCURRENCY REPEAT FOR EVERY TEST
+export Create_Tenant=1:1
+export Create_User=1:1
+export Create_Role=1:1
+export Add_Role=1:1
+export ListRole=1:1
+export Authenticate_User=1:1
+export Delete_User=1:1
+export Delete_Role=1:1
+export Delete_Tenant
+export Create_Image=1:1
+export List_Image=1:1
+export Delete_Image
+export Create_Volume=1:1
+export List_Volume=1:1
+export Create_Backup=1:1
+export List_Backup=1:1
+export Restore_Backup=1:1
+export Delete_Backup=1:1
+export Create_Snapshot=1:1
+export List_Snapshot=1:1
+export Delete_Snapshot=1:1
+export Delete_Volume=1:1
+export Reach_VolumeQuota=1:1
+export Reach_StorageQuota
+export Create_SecurityGroup=1:1
+export Create_Network=1:1
+export Create_Subnet=1:1
+export Create_Router=1:1
+export List_Network=1:1
+export List_Subnet=1:1
+export List_Router=1:1
+export Delete_Router=1:1
+export Delete_Subnet=1:1
+export Delete_Network=1:1
+export Delete_SecurityGroup
+export Create_Flavor=1:1
+export List_Flavor=1:1
+export Delete_Flavor=1:1
+export Create_KeyPair=1:1
+export List_KeyPair=1:1
+export Delete_KeyPair=1:1
+export Create_Server=1:1
+export List_Server=1:1
+export Check_Console=1:1
+export Check_Novnc=1:1
+export Check_Connectivity=1:1
+export Add_FloatingIp=1:1
+export Check_SSH=1:1
+export Grow_Server=1:1
+export Shrink_Server=1:1
+export Migrate_Server=1:1
+export Create_VolumeServer=1:1
+export Create_SnapshotServer=1:1
+export Delete_Server
+export Create_Stack=1:1
+export List_Stack=1:1
+export Update_Stack=1:1
+export Delete_Stack
+export Create_Alarm=1:1
+export List_Alarm=1:1
+export List_Meter=1:1
+export Delete_Alarm
+export Create_Container=1:1
+export List_Container=1:1
+export Delete_Container
+export Fence_Node=1:1
+export Stop_Mysql=1:1
+export Stop_Amqp=1:1
+export Stop_Mongodb=1:1
+export Stop_Keystone=1:1
+export Stop_Glance=1:1
+export Stop_Cinder=1:1
+export Stop_Neutron=1:1
+export Stop_Nova=1:1
+export Stop_Heat=1:1
+export Stop_Ceilometer=1:1
+export Stop_Swift=1:1
