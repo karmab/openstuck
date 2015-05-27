@@ -2002,6 +2002,13 @@ class Openstuck():
 			output.append(['nova', 'Remove_FlavorAccess', flavor, flavor, runningtime, results,])
 	def Restore_Backup(self, cinder, backup, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
+		if backup is None:
+			results = 'NotRun'
+			errors.append('Restore_Backup')
+			if verbose:
+				print "Restore_Backup: %s 0 seconds" % 'N/A'
+				output.append(['cinderbackup', 'Restore_Backup', 'N/A', 'N/A', '0', results,])
+			return
 		#if volume is None or backup is None:
 		#	errors.append('Create_Restore')
 		#	results = 'NotRun'
