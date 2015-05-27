@@ -2093,22 +2093,20 @@ class Openstuck():
 			return False
 	def _fence(self,server, user, password, name, mode, timeout=20):
 		mode = mode.lower()
+		fence    = "fence_%s" % mode
 		success = False
 		if server is None or user is None or password is None or mode is None:
 			print 'Missing environment FENCING variables'
 			return False
 		if mode in  ['brocade', 'cisco_ucs', 'docker', 'lpar', 'rhevm', 'vmware_soap'] :
-			fence    = "fence_%s" % mode.
 			fencecmd = "%s -z -a %s -l %s -p %s -n %s -o" % (fence, server, user, password, name)
 			startcmd = "%s on" % fencecmd
 			stopcmd  = "%s off" % fencecmd 
 		elif mode == 'fence_ovh':
-			fence    = "fence_%s" % mode.
 			fencecmd = "%s -z -l %s -p %s -n %s -o" % (fence, server, user, password, name)
 			startcmd = "%s on" % fencecmd
 			stopcmd  = "%s off" % fencecmd 
 		else:
-			fence    = "fence_%s" % mode.
 			fencecmd = "fence_%s -z -a %s -l %s -p %s -o" % (mode, server, user, password)
 			startcmd = "%s on" % fencecmd
 			startcmd = "%s on" % fencecmd
