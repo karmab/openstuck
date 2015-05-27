@@ -624,8 +624,8 @@ class Openstuck():
 		starttime = time.time()
 		try:
 			newalarm = ceilometer.alarms.create(name=alarm, threshold=100, meter_name=alarm)
+			alarms.append(newalarm.alarm_id)
 			results = 'OK'
-			alarms.append(newalarm.id)
 		except Exception as error:
 			errors.append('Create_Alarm')
 			results = str(error)
@@ -1131,7 +1131,7 @@ class Openstuck():
 			return
 		alarmname = alarm.name
 		try:
-			alarm.delete()
+			ceilometer.alarms.delete(alarm.alarm_id)
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Alarm')
@@ -1577,7 +1577,7 @@ class Openstuck():
 				output.append(['ceilometer', 'List_Alarm', 'N/A', 'N/A', '0', results,])
 			return
 		try:
-			ceilometer.alarms.get(alarm.id)
+			ceilometer.alarms.get(alarm.alarm_id)
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Alarm')
