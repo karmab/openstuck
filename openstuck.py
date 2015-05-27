@@ -643,6 +643,7 @@ class Openstuck():
 		starttime = time.time()
 		if volume is None:
 			errors.append('Create_Backup')
+			backups.append(None)
 			results = 'NotRun'
 			if verbose:
 				print "Create_Backup: %s 0 seconds" % 'N/A'
@@ -944,6 +945,7 @@ class Openstuck():
 		starttime = time.time()
 		if volume is None:
 			errors.append('Create_Snapshot')
+			snapshots.append(None)
 			results = 'NotRun'
 			if verbose:
 				output.append(['cinder', 'Create_Snapshot', 'N/A', 'N/A', '0', results,])
@@ -1102,7 +1104,7 @@ class Openstuck():
 	def Create_Volume(self, cinder, volume, volumes=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
-			newvolume = cinder.volumes.create(size=2000, name=volume)
+			newvolume = cinder.volumes.create(size=1, name=volume)
 			volumes.append(newvolume.id)
                         available = o._available(cinder.volumes, newvolume.id, timeout)
                         if not available:
