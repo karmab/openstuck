@@ -47,7 +47,7 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIp', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Migrate_Server', 'Create_VolumeServer', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIp', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Migrate_Server', 'Create_VolumeServer', 'Create_SnapshotServer', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Update_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -142,6 +142,7 @@ class Openstuck():
         	self.router            = "%srouter" % project
         	self.server            = "%sserver" % project
         	self.volumeserver      = "%svolumeserver" % project
+        	self.snapshotserver    = "%ssnapshotserver" % project
         	self.flavor            = "%sflavor" % project
         	self.keypair           = "%skeypair" % project
         	self.stack             = "%sstack" % project
@@ -172,12 +173,13 @@ class Openstuck():
                         		return info['addr']
 		return None
 
-	def _novabefore(self, externalnet):
+	def _novabefore(self, externalnet=None, image=True, volume=False, snapshot=False):
 		tenantid          = self.auth_tenant_id	
 		novaflavor1	  = "%s-flavor1" % self.project
 		novaflavor2	  = "%s-flavor2" % self.project
 		novaimage	  = "%s-image" % self.project
 		novavolume	  = "%s-volume" % self.project
+		novasnapshot	  = "%s-snapshot" % self.project
 		novakey	          = "%s-key" % self.project
 		novanet		  = "%s-net" % self.project
 		novasubnet	  = "%s-subnet" % self.project
@@ -201,7 +203,7 @@ class Openstuck():
 			keypair = nova.keypairs.create(novakey)
 			self.private_key = keypair.private_key
 			self.embeddedobjects['keypair'] = keypair
-		if not self.embeddedobjects.has_key('image'):
+		if not self.embeddedobjects.has_key('image') and image:
 			image           = glance.images.create(name=novaimage, visibility='private', disk_format='qcow2',container_format='bare')
 			self.embeddedobjects['image'] = image.id
 			with open(imagepath,'rb') as data:
@@ -209,12 +211,18 @@ class Openstuck():
 			available = o._available(glance.images, image.id, timeout,status='active')
 			if not available:
 				raise Exception("Timeout waiting for available status")
-			if not self.embeddedobjects.has_key('volume'):
+			if not self.embeddedobjects.has_key('volume') and volume:
 				volume = cinder.volumes.create(name=novavolume,size=self.imagesize, imageRef=image.id)
 				self.embeddedobjects['volume'] = volume.id
 				available = o._available(cinder.volumes, volume.id, timeout,status='available')
 				if not available:
 					raise Exception("Timeout waiting for available status")
+				if not self.embeddedobjects.has_key('snapshot') and snapshot:
+					snapshot = cinder.volume_snapshots.create(volume_id=volume.id, name=novasnapshot)
+					self.embeddedobjects['snapshot'] = snapshot.id
+					available = o._available(cinder.volume_snapshots, snapshot.id, timeout,status='available')
+					if not available:
+						raise Exception("Timeout waiting for available status")
 					
 		if not self.embeddedobjects.has_key('network'):
 			network         = {'name': novanet, 'admin_state_up': True, 'tenant_id': tenantid}
@@ -301,6 +309,13 @@ class Openstuck():
 		if self.embeddedobjects.has_key('securitygroup'):
 				securitygroupid = self.embeddedobjects['securitygroup']
 				neutron.delete_security_group(securitygroupid)
+		if self.embeddedobjects.has_key('snapshot'):
+				snapshotid = self.embeddedobjects['snapshot']
+				available  = o._available(cinder.volume_snapshots, snapshotid, timeout)
+                        	if not available:
+                                	raise Exception("Timeout waiting for available status")
+				cinder.volume_snapshots.delete(snapshotid)
+				o._deleted(cinder.volume_snapshots, snapshotid, timeout)
 		if self.embeddedobjects.has_key('volume'):
 				volumeid= self.embeddedobjects['volume']
 				available = o._available(cinder.volumes, volumeid, timeout)
@@ -337,7 +352,7 @@ class Openstuck():
 		newstatus = manager.get(objectid).status
 		while newstatus != status:
 			timein += 0.2
-			if timein > timeout or newstatus == 'ERROR':
+			if timein > timeout or newstatus.lower() == 'error':
 				return False
 			time.sleep(0.2)
 			newstatus = manager.get(objectid).status
@@ -850,6 +865,43 @@ class Openstuck():
 			print "Create_Server: %s %s seconds %s" % (server, runningtime, results )
 			output.append(['nova', 'Create_Server', server, server, runningtime, results,])
 
+	def Create_SnapshotServer(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		cinder = cinderclient.Client(**self.novacredentials)
+		try:
+			if not embedded:
+				keypairname = None
+				snapshot    = os.environ['OS_NOVA_SNAPSHOT']   if os.environ.has_key('OS_NOVA_SNAPSHOT') else 'cirros'
+				snapshot    = cinder.volume_snapshots.find(name=snapshot)
+				network     = os.environ['OS_NOVA_NETWORK']    if os.environ.has_key('OS_NOVA_NETWORK')  else 'private'
+				networkid   = nova.networks.find(label=network).id
+			else:
+				flavorname    = "%s-flavor1" % self.project
+				flavor        = nova.flavors.find(name=flavorname)
+				keypairname   = "%s-key" % self.project
+				snapshotname  = "%s-snapshot" % self.project
+				snapshot      = cinder.volume_snapshots.find(name=snapshotname)
+				networkname   = "%s-net" % self.project
+				networkid     = nova.networks.find(label=networkname).id
+			nics = [{'net-id': networkid}]
+			userdata = "#!/bin/bash\necho METADATA >/dev/ttyS0"
+			mapping = {'vda':"%s:snap::0" % snapshot.id}
+			newserver = nova.servers.create(name=server, image='', block_device_mapping=mapping, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
+			servers.append(newserver.id)
+                        active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
+                        if not active:
+                                raise Exception("Timeout waiting for active status")
+			results = 'OK'
+		except Exception as error:
+			errors.append('Create_SnapshotServer')
+			results = str(error)
+			servers.append(None)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime) 
+			print "Create_SnapshotServer: %s %s seconds %s" % (server, runningtime, results )
+			output.append(['nova', 'Create_SnapshotServer', server, server, runningtime, results,])
+
 	def Create_VolumeServer(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		cinder = cinderclient.Client(**self.novacredentials)
@@ -921,41 +973,6 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Snapshot: %s %s seconds %s" % (snapshot, runningtime, results )
 			output.append(['cinder', 'Create_Snapshot', snapshot, snapshot, runningtime, results,])	
-
-	def Create_SnapshotServer(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
-		starttime = time.time()
-		try:
-			if not embedded:
-				keypairname = None
-				snapshot    = os.environ['OS_NOVA_SNAPSHOT']   if os.environ.has_key('OS_NOVA_SNAPSHOT')   else 'cirros'
-				snapshot    = nova.snapshots.find(name=snapshot)
-				network     = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
-				networkid   = nova.networks.find(label=network).id
-			else:
-				flavorname  = "%s-flavor1" % self.project
-				flavor      = nova.flavors.find(name=flavorname)
-				keypairname = "%s-key" % self.project
-				snapshotname  = "%s-snapshot" % self.project
-				snapshot      = nova.images.find(name=snapshotname)
-				networkname = "%s-net" % self.project
-				networkid   = nova.networks.find(label=networkname).id
-			nics = [{'net-id': networkid}]
-			userdata = "#!/bin/bash\necho METADATA >/dev/ttyS0"
-			newserver = nova.servers.create(name=server, snapshot=snapshot, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
-			servers.append(newserver.id)
-                        active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
-                        if not active:
-                                raise Exception("Timeout waiting for active status")
-			results = 'OK'
-		except Exception as error:
-			errors.append('Create_SnapshotServer')
-			results = str(error)
-			servers.append(None)
-		if verbose:
-			endtime     = time.time()
-			runningtime = "%0.3f" % (endtime -starttime) 
-			print "Create_SnapshotServer: %s %s seconds %s" % (server, runningtime, results )
-			output.append(['nova', 'Create_SnapshotServer', server, server, runningtime, results,])
 
 	def Create_Stack(self, heat, stack, stacks=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
@@ -1085,7 +1102,7 @@ class Openstuck():
 	def Create_Volume(self, cinder, volume, volumes=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		try:
-			newvolume = cinder.volumes.create(size=1, name=volume)
+			newvolume = cinder.volumes.create(size=2000, name=volume)
 			volumes.append(newvolume.id)
                         available = o._available(cinder.volumes, newvolume.id, timeout)
                         if not available:
@@ -2277,7 +2294,7 @@ class Openstuck():
 					neutron.security_groups.delete(securitygroup['id'])
 				except:
 					continue
-	def novaclean(self, flavors, keypairs, servers, volumeservers, floatings):
+	def novaclean(self, flavors, keypairs, servers, volumeservers, snapshotservers, floatings):
 		if self.verbose:
 			print "Cleaning Nova..."
 		nova     = novaclient.Client('2', **self.novacredentials)
@@ -2303,6 +2320,14 @@ class Openstuck():
 			else:
 				try:
 					nova.servers.delete(server.id)
+				except:
+					continue
+		for snapshotserver in snapshotservers:
+			if snapshotserver is None:
+				continue
+			else:
+				try:
+					nova.servers.delete(snapshotserver.id)
 				except:
 					continue
 		for volumeserver in volumeservers:
@@ -3024,16 +3049,17 @@ class Openstuck():
 
 		return securitygroups, networks, subnets, routers
 	def novatest(self):
-		category       = 'nova'
-		timeout        = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
-		tests          = self.novatests 
-		mgr            = multiprocessing.Manager()
-		errors         = mgr.list()
-		keypairs       = mgr.list()
-		flavors        = mgr.list()
-		servers        = mgr.list()
-		volumeservers  = mgr.list()
-		floatings      = mgr.list()
+		category        = 'nova'
+		timeout         = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
+		tests           = self.novatests 
+		mgr             = multiprocessing.Manager()
+		errors          = mgr.list()
+		keypairs        = mgr.list()
+		flavors         = mgr.list()
+		servers         = mgr.list()
+		snapshotservers = mgr.list()
+		volumeservers   = mgr.list()
+		floatings       = mgr.list()
 		if self.verbose:
 			print "Testing Nova..."
 		keystone = self.keystone
@@ -3314,6 +3340,23 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 
+		test    = 'Create_SnapshotServer'
+		reftest = test
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			for step in range(repeat):
+				jobs = [ multiprocessing.Process(target=self.Create_SnapshotServer, args=(nova, "%s-%d-%d" % (self.snapshotserver, step, number), snapshotservers, errors, output, self.verbose, timeout, )) for number in range(concurrency) ]
+				self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
+			snapshotservers = [ nova.servers.get(server_id) if server_id is not None else None for server_id in snapshotservers ]
+
 		test    = 'Create_VolumeServer'
 		reftest = test
 		if test in tests:
@@ -3345,7 +3388,7 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
-		return flavors, keypairs, servers, volumeservers, floatings
+		return flavors, keypairs, servers, volumeservers, snapshotservers, floatings
 
 	def heattest(self):
 		category = 'heat'
@@ -3885,16 +3928,26 @@ if __name__ == "__main__":
 				o._clean()
 				sys.exit(1)
 		try:
-			o._novabefore(externalnet)
+			image, volume, snapshot = False, False, False
+			if 'Create_Server' in o.novatests:
+				image = True
+			if 'Create_VolumeServer' in o.novatests:
+				image  = True
+				volume = True
+			if 'Create_SnapshotServer' in o.novatests:
+				image   = True
+				volume  = True
+				snapshot= True
+			o._novabefore(externalnet=externalnet, image=image, volume=volume, snapshot=snapshot)
 		except Exception as e:	
 			print e
 			o._novaafter()
 			o._clean()
 			sys.exit(1)
-		flavors, keypairs, servers, volumeservers, floatings = o.novatest()
+		flavors, keypairs, servers, volumeservers, snapshotservers, floatings = o.novatest()
 	if testheat or testall:
 		if o.embedded:
-			o._novabefore(externalnet)
+			o._novabefore(externalnet=externalnet, image=True, volume=False, snapshot=False)
 		stacks = o.heattest()
 	if testceilometer or testceilometer:
 		alarms = o.ceilometertest()
@@ -3912,7 +3965,7 @@ if __name__ == "__main__":
 	if testneutron or testall:
 		o.neutronclean(securitygroups, networks, subnets, routers)
 	if testnova or testall:
-		o.novaclean(flavors, keypairs, servers, volumeservers, floatings)
+		o.novaclean(flavors, keypairs, servers, volumeservers, snapshotservers, floatings)
 	if testheat or testall:
 		o.heatclean(stacks)
 	if testceilometer or testceilometer:
