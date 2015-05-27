@@ -79,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',amqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',amqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -164,6 +164,7 @@ class Openstuck():
 		self.hafenceusers     = hafenceusers
 		self.hafencepasswords = hafencepasswords
 		self.hafencemodes     = hafencemodes
+		self.hafencewait      = hafencewait
 	def _getfloatingip(self, server):
 		for net in server.addresses:
         		for info in server.addresses[net]:
@@ -3578,6 +3579,8 @@ class Openstuck():
 					print "%s  %s seconds" % (test, runningtime)
 				self._report(category, "%s on %s" % (test,name) , '1', '1', runningtime, errors)
 				#self._addrows(verbose, output)
+				if self.hafencewait > 0:
+					time.sleep(self.hafencewait)
 
 		test    = 'Stop_Mysql'
 		reftest = test
@@ -3749,8 +3752,8 @@ class Openstuck():
 if __name__ == "__main__":
 	#parse options
 	usage   = "test openstack installation quickly"
-	version = "0.1"
-	parser  = optparse.OptionParser("Usage: %prog [options] deployment",version=version)
+	version = "0.99"
+	parser  = optparse.OptionParser("Usage: %prog [options] ",version=version)
 	listinggroup = optparse.OptionGroup(parser, 'Listing options')
 	listinggroup.add_option('-l', '--listservices', dest='listservices', action='store_true', help='List available services')
 	parser.add_option_group(listinggroup)
@@ -3772,13 +3775,14 @@ if __name__ == "__main__":
 	novagroup.add_option('--cpus', dest='cpus', default='1', type='int', help='Flavor Cpus for nova tests. Defaults env[NOVA_CPUS] or 1 otherwise')
 	parser.add_option_group(novagroup)
 	hagroup = optparse.OptionGroup(parser, 'Nova Flavor Testing options')
-	hagroup.add_option('-w', '--haserver', dest='haserver', type='string', help='Haserver to HA tests. Defaults to env[OS_HA_SERVER]')
-	hagroup.add_option('-x', '--hauser', dest='hauser', default='root', type='string', help='Hauser to HA tests. Defaults to env[OS_HA_USER]')
-	hagroup.add_option('-y', '--hapassword', dest='hapassword', type='string', help='Hapassword for ha tests. Defaults to env[OS_HA_PASSWORD]')
-	hagroup.add_option('-z', dest='haprivatekey', type='string', help='Ha privatekey file. Defaults env[OS_HA_PRIVATEKEY]')
+	hagroup.add_option('-1', '--haserver', dest='haserver', type='string', help='Haserver to HA tests. Defaults to env[OS_HA_SERVER]')
+	hagroup.add_option('-2', '--hauser', dest='hauser', default='root', type='string', help='Hauser to HA tests. Defaults to env[OS_HA_USER]')
+	hagroup.add_option('-3', '--hapassword', dest='hapassword', type='string', help='Hapassword for ha tests. Defaults to env[OS_HA_PASSWORD]')
+	hagroup.add_option('-4', dest='haprivatekey', type='string', help='Ha privatekey file. Defaults env[OS_HA_PRIVATEKEY]')
 	parser.add_option_group(hagroup)
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. Defaults to acme')
 	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] or 80 otherwise')
+	parser.add_option('-w', '--fencewait', dest='hafencewait', default=0, type='int', help='Time to wait between fence steps. Defaults to env[OS_HA_FENCEWAIT] or 0 otherwise')
 	parser.add_option('-u', '--clouduser', dest='clouduser', default='root', type='string', help='User for Check_SSH test. Defaults to root')
 	parser.add_option('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Verbose mode. Defaults to False')
 	parser.add_option('-e', '--embedded', dest='embedded', default=False, action='store_true', help='Create a dedicated tenant to hold all tests. Defaults to True')
@@ -3802,6 +3806,7 @@ if __name__ == "__main__":
 	cpus             = options.cpus
 	disk             = options.disk
 	embedded         = options.embedded
+	hafencewait	 = options.hafencewait
 	haserver	 = options.haserver
 	hauser		 = options.hauser
 	hapassword	 = options.hapassword
@@ -3832,6 +3837,7 @@ if __name__ == "__main__":
 		hauser              = os.environ['OS_HA_USER']                       if os.environ.has_key('OS_HA_USER')             else hauser
 		hapassword          = os.environ['OS_HA_PASSWORD']                   if os.environ.has_key('OS_HA_PASSWORD')         else hapassword
 		haprivatekey        = os.environ['OS_HA_PRIVATEKEY']                 if os.environ.has_key('OS_HA_PRIVATEKEY')       else haprivatekey
+		hafencewait         = int(os.environ['OS_HA_FENCEWAIT'])             if os.environ.has_key('OS_HA_FENCEWAIT')        else hafencewait
 		hafenceservers      = os.environ['OS_HA_FENCESERVERS'].split(',')    if os.environ.has_key('OS_HA_FENCESERVERS')     else None
 		hafencenames        = os.environ['OS_HA_FENCENAMES'].split(',')      if os.environ.has_key('OS_HA_FENCENAMES')       and hafenceservers is not None else None
 		hafenceusers	    = os.environ['OS_HA_FENCEUSERS'].split(',')	     if os.environ.has_key('OS_HA_FENCEUSERS')       and hafenceservers is not None else None
@@ -3844,7 +3850,7 @@ if __name__ == "__main__":
 	    	os._exit(1)
 	if listservices or testha:
 		embedded = False
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, amqp=amqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes )
+	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, amqp=amqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes , hafencewait=hafencewait)
 	#testing
 	if listservices:
 		if o.admin:
