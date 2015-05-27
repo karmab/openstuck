@@ -208,21 +208,15 @@ class Openstuck():
 			self.embeddedobjects['image'] = image.id
 			with open(imagepath,'rb') as data:
 				glance.images.upload(image.id, data)
-			available = o._available(glance.images, image.id, timeout,status='active')
-			if not available:
-				raise Exception("Timeout waiting for available status")
+			o._available(glance.images, image.id, timeout,status='active')
 			if not self.embeddedobjects.has_key('volume') and volume:
 				volume = cinder.volumes.create(name=novavolume,size=self.imagesize, imageRef=image.id)
 				self.embeddedobjects['volume'] = volume.id
-				available = o._available(cinder.volumes, volume.id, timeout,status='available')
-				if not available:
-					raise Exception("Timeout waiting for available status")
+				o._available(cinder.volumes, volume.id, timeout,status='available')
 				if not self.embeddedobjects.has_key('snapshot') and snapshot:
 					snapshot = cinder.volume_snapshots.create(volume_id=volume.id, name=novasnapshot)
 					self.embeddedobjects['snapshot'] = snapshot.id
-					available = o._available(cinder.volume_snapshots, snapshot.id, timeout,status='available')
-					if not available:
-						raise Exception("Timeout waiting for available status")
+					o._available(cinder.volume_snapshots, snapshot.id, timeout,status='available')
 					
 		if not self.embeddedobjects.has_key('network'):
 			network         = {'name': novanet, 'admin_state_up': True, 'tenant_id': tenantid}
@@ -311,16 +305,12 @@ class Openstuck():
 				neutron.delete_security_group(securitygroupid)
 		if self.embeddedobjects.has_key('snapshot'):
 				snapshotid = self.embeddedobjects['snapshot']
-				available  = o._available(cinder.volume_snapshots, snapshotid, timeout)
-                        	if not available:
-                                	raise Exception("Timeout waiting for available status")
+				o._available(cinder.volume_snapshots, snapshotid, timeout)
 				cinder.volume_snapshots.delete(snapshotid)
 				o._deleted(cinder.volume_snapshots, snapshotid, timeout)
 		if self.embeddedobjects.has_key('volume'):
 				volumeid= self.embeddedobjects['volume']
-				available = o._available(cinder.volumes, volumeid, timeout)
-                        	if not available:
-                                	raise Exception("Timeout waiting for available status")
+				o._available(cinder.volumes, volumeid, timeout)
 				cinder.volumes.delete(volumeid)
 
 	def _clean(self):
@@ -352,11 +342,18 @@ class Openstuck():
 		newstatus = manager.get(objectid).status
 		while newstatus != status:
 			timein += 0.2
-			if timein > timeout or newstatus.lower() == 'error':
-				return False
+			if timein > timeout:
+				raise Exception('Time out waiting for correct status')
+			if newstatus.lower() == 'error':
+				if 'fault' in dir(manager.get(objectid)):
+					print type(manager.get(objectid).fault)
+					message = manager.get(objectid).fault['message']
+					raise Exception(message)
+				else:
+					raise Exception('Error')
 			time.sleep(0.2)
 			newstatus = manager.get(objectid).status
-		return True
+		return {'success':True}
 	def _searchlog(self, server,search, timeout):
 		timein = 0
 		while True:
@@ -652,15 +649,11 @@ class Openstuck():
 		backup = "backup-%s" % volume.name
 		try:
 			volume_id = volume.id
-			available = o._available(cinder.volumes, volume_id, timeout)
-			if not available:
-				raise Exception("Timeout waiting for available status")
+			o._available(cinder.volumes, volume_id, timeout)
 			newbackup = cinder.backups.create(volume_id=volume_id, name=backup)
 			backups.append(newbackup.id)
 			results = 'OK'
-                        available = o._available(cinder.backups, newbackup.id, timeout)
-                        if not available:
-                                raise Exception("Timeout waiting for available status")
+                        o._available(cinder.backups, newbackup.id, timeout)
 		except cinderexceptions.NoUniqueMatch:
 			errors.append('Create_Backup')
 			results = 'NoUniqueMatch'
@@ -722,9 +715,7 @@ class Openstuck():
 			newimage = glance.images.create(name=image, visibility='private', disk_format='qcow2',container_format='bare')
 			with open(imagepath,'rb') as data:
 				glance.images.upload(newimage.id, data)
-			available = o._available(glance.images, newimage.id, timeout,status='active')
-			if not available:
-				raise Exception("Timeout waiting for available status")
+			o._available(glance.images, newimage.id, timeout,status='active')
 			results = 'OK'
 			images.append(newimage.id)
 		except Exception as error:
@@ -852,9 +843,7 @@ class Openstuck():
 			userdata = "#!/bin/bash\necho METADATA >/dev/ttyS0"
 			newserver = nova.servers.create(name=server, image=image, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
 			servers.append(newserver.id)
-                        active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
-                        if not active:
-                                raise Exception("Timeout waiting for active status")
+                        o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Server')
@@ -889,9 +878,7 @@ class Openstuck():
 			mapping = {'vda':"%s:snap::0" % snapshot.id}
 			newserver = nova.servers.create(name=server, image='', block_device_mapping=mapping, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
 			servers.append(newserver.id)
-                        active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
-                        if not active:
-                                raise Exception("Timeout waiting for active status")
+                        o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_SnapshotServer')
@@ -926,9 +913,7 @@ class Openstuck():
 			mapping = {'vda':volume.id}
 			newserver = nova.servers.create(name=server, image='', block_device_mapping=mapping, flavor=flavor, nics=nics, key_name=keypairname, userdata=userdata)
 			servers.append(newserver.id)
-                        active = o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
-                        if not active:
-                                raise Exception("Timeout waiting for active status")
+                        o._available(nova.servers, newserver.id, timeout, status='ACTIVE')
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_VolumeServer')
@@ -953,15 +938,11 @@ class Openstuck():
 		snapshot = "snapshot-%s" % volume.name
 		try:
 			volume_id = volume.id				
-                        available = o._available(cinder.volumes, volume_id, timeout)
-                        if not available:
-                                raise Exception("Timeout waiting for available status")
+                        o._available(cinder.volumes, volume_id, timeout)
 			newsnapshot = cinder.volume_snapshots.create(volume_id=volume_id, name=snapshot)
 			snapshots.append(newsnapshot.id)
 			results = 'OK'
-                        available = o._available(cinder.volume_snapshots, newsnapshot.id, timeout)
-                        if not available:
-                                raise Exception("Timeout waiting for available status")
+                        o._available(cinder.volume_snapshots, newsnapshot.id, timeout)
 		except cinderexceptions.NoUniqueMatch:
 			errors.append('Create_Snapshot')
 			results = 'NoUniqueMatch'
@@ -1002,9 +983,7 @@ class Openstuck():
 				#	del template['resources'][oldkey]
 			newstack = heat.stacks.create(stack_name=stack, template=template)
 			stacks.append(newstack['stack']['id'])
-			available = o._available(heat.stacks, newstack['stack']['id'], timeout, status='COMPLETE')
-			if not available:
-				raise Exception("Timeout waiting for available status")
+			o._available(heat.stacks, newstack['stack']['id'], timeout, status='COMPLETE')
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Stack')
@@ -1066,9 +1045,7 @@ class Openstuck():
 			newvolume = cinder.volumes.create(size=1, name=volume, volume_type=volumetype)
 			volumes.append(newvolume.id)
 			results = 'OK'
-                        available = o._available(cinder.volumes, newvolume.id, timeout)
-                        if not available:
-                                raise Exception("Timeout waiting for available status")
+                        o._available(cinder.volumes, newvolume.id, timeout)
 		except Exception as error:
 			errors.append('Create_TypedVolume')
 			results = str(error)
@@ -1106,9 +1083,7 @@ class Openstuck():
 		try:
 			newvolume = cinder.volumes.create(size=1, name=volume)
 			volumes.append(newvolume.id)
-                        available = o._available(cinder.volumes, newvolume.id, timeout)
-                        if not available:
-                                raise Exception("Timeout waiting for available status")
+			o._available(cinder.volumes, newvolume.id, timeout)
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Volume')
@@ -1136,9 +1111,7 @@ class Openstuck():
 			newvolume = cinder.volumes.create(snapshot_id=snapshot_id, name=volumename, size=snapshot_size)
 			snapshotvolumes.append(newvolume.id)
 			results = 'OK'
-                        available = o._available(cinder.volumes, newvolume.id, timeout)
-                        if not available:
-                                raise Exception("Timeout waiting for available status")
+                        o._available(cinder.volumes, newvolume.id, timeout)
 		except Exception as error:
 			errors.append('Create_Volume_From_Snapshot')
 			results = str(error)
@@ -1535,9 +1508,7 @@ class Openstuck():
 			return
 		volumename = volume.name
 		try:
-                        available = o._available(cinder.volumes, volume.id, timeout)
-                        if not available:
-                                raise Exception("Timeout waiting for available status")
+                        o._available(cinder.volumes, volume.id, timeout)
 			volume.delete()
 			results = 'OK'
 			deleted = o._deleted(cinder.volumes, volume.id, timeout)
@@ -1565,9 +1536,7 @@ class Openstuck():
 		try:
 			flavor2 = nova.flavors.get("%s-flavor2" % self.project)
 			servers.resize(flavor2)
-                        active = o._available(nova.servers, server.id, timeout, status='ACTIVE')
-                        if not active:
-                                raise Exception("Timeout waiting for active status")
+                        o._available(nova.servers, server.id, timeout, status='ACTIVE')
 			results = 'OK'
 		except Exception as error:
 			errors.append('Grow_Server')
@@ -1588,9 +1557,7 @@ class Openstuck():
 			return
 		try:
 			cinder.volumes.extend(volume.id,2)
-			available = o._available(cinder.volumes, volume.id, timeout)
-                        if not available:
-                                raise Exception("Timeout waiting for available status")
+			o._available(cinder.volumes, volume.id, timeout)
 			results = 'OK'
 		except Exception as error:
 			errors.append('Grow_Volume')
@@ -1928,9 +1895,7 @@ class Openstuck():
 			return
 		try:
 			server.live_migrate()
-			active = o._available(nova.servers, server.id, timeout, status='ACTIVE')
-                        if not active:
-				raise Exception("Timeout waiting for active status")
+			o._available(nova.servers, server.id, timeout, status='ACTIVE')
 			results = 'OK'
 		except Exception as error:
 			errors.append('Migrate_Server')
@@ -2019,11 +1984,8 @@ class Openstuck():
 		try:
 			backup_id   = backup.id
 			backup_name = backup.name
-			#volume_id   = volume.id
 			cinder.restores.restore(backup_id)
-                        available = o._available(cinder.backups, backup.id, timeout)
-                        if not available:
-                                raise Exception("Timeout waiting for available status")
+                        o._available(cinder.backups, backup.id, timeout)
 			results = 'OK'
 		except Exception as error:
 			errors.append('Restore_Backup')
@@ -2046,9 +2008,7 @@ class Openstuck():
 		try:
 			flavor1 = nova.flavors.get("%s-flavor1" % self.project)
 			servers.resize(flavor1)
-                        active = o._available(nova.servers, server.id, timeout, status='ACTIVE')
-                        if not active:
-                                raise Exception("Timeout waiting for active status")
+                        o._available(nova.servers, server.id, timeout, status='ACTIVE')
 			results = 'OK'
 		except Exception as error:
 			errors.append('Shrink_Server')
