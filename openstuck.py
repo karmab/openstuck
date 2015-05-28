@@ -3883,8 +3883,8 @@ if __name__ == "__main__":
 			if category in os.environ.keys():
 				tests = os.environ[category].split(',')
 			else:
-				category = category.split('_')[1].lower()
-				tests    = eval("%sdefaulttests" % category)
+				cat   = category.split('_')[1].lower()
+				tests = eval("%sdefaulttests" % cat)
 			print "%s=%s" % (category,','.join(tests))
 			for test in tests:	
 				if os.environ.has_key(test):
