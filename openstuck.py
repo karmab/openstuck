@@ -1533,9 +1533,9 @@ class Openstuck():
 				output.append(['nova', 'Grow_Server', 'N/A', 'N/A', '0', results,])
 			return
 		try:
-			flavor2 = nova.flavors.get("%s-flavor2" % self.project)
+			flavor2 = nova.flavors.find(name="%s-flavor2" % self.project)
 			servers.resize(flavor2)
-                        o._available(nova.servers, server.id, timeout, status='ACTIVE')
+			o._available(nova.servers, server.id, timeout, status='RESIZE')
 			results = 'OK'
 		except Exception as error:
 			errors.append('Grow_Server')
@@ -1894,6 +1894,8 @@ class Openstuck():
 			return
 		try:
 			server.live_migrate()
+			o._available(nova.servers, server.id, timeout, status='VERIFY_RESIZE')
+			server.confirm_resize()
 			o._available(nova.servers, server.id, timeout, status='ACTIVE')
 			results = 'OK'
 		except Exception as error:
@@ -2005,9 +2007,9 @@ class Openstuck():
 				output.append(['nova', 'Shrink_Server', 'N/A', 'N/A', '0', results,])
 			return
 		try:
-			flavor1 = nova.flavors.get("%s-flavor1" % self.project)
+			flavor1 = nova.flavors.find("%s-flavor1" % self.project)
 			servers.resize(flavor1)
-                        o._available(nova.servers, server.id, timeout, status='ACTIVE')
+			o._available(nova.servers, server.id, timeout, status='RESIZE')
 			results = 'OK'
 		except Exception as error:
 			errors.append('Shrink_Server')
