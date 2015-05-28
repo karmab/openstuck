@@ -3885,6 +3885,7 @@ if __name__ == "__main__":
 				tests = os.environ[key].split(',')
 			else:
 				tests = eval("%sdefaulttests" % category)
+			print "%s=%s" % (key,','.join(tests))
 			for test in tests:	
 				if os.environ.has_key(test):
 					metric = os.environ[test]
