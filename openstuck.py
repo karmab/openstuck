@@ -848,8 +848,8 @@ class Openstuck():
 				image       = nova.images.find(name=image)
 				network     = os.environ['OS_NOVA_NETWORK']
 				networkid   = nova.networks.find(label=network).id
-				flavor  = os.environ['OS_NOVA_FLAVOR']
-				flavor  = nova.flavors.find(name=flavor)
+				flavor      = os.environ['OS_NOVA_FLAVOR']
+				flavor      = nova.flavors.find(name=flavor)
 			else:
 				flavorname  = "%s-flavor1" % self.project
 				flavor      = nova.flavors.find(name=flavorname)
