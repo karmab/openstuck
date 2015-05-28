@@ -3835,58 +3835,62 @@ if __name__ == "__main__":
 	hauser		 = options.hauser
 	hapassword	 = options.hapassword
 	haprivatekey	 = options.haprivatekey
-	#try:
-	keystonecredentials = _keystonecreds()
-	novacredentials     = _novacreds()
-	endpoint            = os.environ['OS_ENDPOINT_TYPE']                 if os.environ.has_key('OS_ENDPOINT_TYPE')       else 'publicURL'
-	keystonetests       = os.environ['OS_KEYSTONE_TESTS'].split(',')     if os.environ.has_key('OS_KEYSTONE_TESTS')      else keystonedefaulttests
-	glancetests         = os.environ['OS_GLANCE_TESTS'].split(',')       if os.environ.has_key('OS_GLANCE_TESTS')        else glancedefaulttests
-	cindertests         = os.environ['OS_CINDER_TESTS'].split(',')       if os.environ.has_key('OS_CINDER_TESTS')        else cinderdefaulttests
-	neutrontests        = os.environ['OS_NEUTRON_TESTS'].split(',')      if os.environ.has_key('OS_NEUTRON_TESTS')       else neutrondefaulttests
-	novatests           = os.environ['OS_NOVA_TESTS'].split(',')         if os.environ.has_key('OS_NOVA_TESTS')          else novadefaulttests
-	heattests           = os.environ['OS_HEAT_TESTS'].split(',')         if os.environ.has_key('OS_HEAT_TESTS')          else heatdefaulttests
-	swifttests          = os.environ['OS_SWIFT_TESTS'].split(',')        if os.environ.has_key('OS_SWIFT_TESTS')         else swiftdefaulttests
-	ceilometertests     = os.environ['OS_CEILOMETER_TESTS'].split(',')   if os.environ.has_key('OS_CEILOMETER_TESTS')    else ceilometerdefaulttests
-	hatests             = os.environ['OS_HA_TESTS'].split(',')           if os.environ.has_key('OS_HA_TESTS')            else hadefaulttests
-	imagepath           = os.environ['OS_GLANCE_IMAGE_PATH']             if os.environ.has_key('OS_GLANCE_IMAGE_PATH')   else None
-	imagesize           = int(os.environ['OS_GLANCE_IMAGE_SIZE'])        if os.environ.has_key('OS_GLANCE_IMAGE_SIZE')   else 10
-	volumetype          = os.environ['OS_CINDER_VOLUME_TYPE']            if os.environ.has_key('OS_CINDER_VOLUME_TYPE')  else None
-	externalnet         = os.environ['OS_NEUTRON_EXTERNALNET']           if os.environ.has_key('OS_NEUTRON_EXTERNALNET') else None
-	timeout             = int(os.environ['OS_TIMEOUT'])                  if os.environ.has_key('OS_TIMEOUT')             else timeout
-	ram                 = int(os.environ['OS_NOVA_RAM'])                 if os.environ.has_key('OS_NOVA_RAM')            else ram
-	cpus                = int(os.environ['OS_NOVA_CPUS'])                if os.environ.has_key('OS_NOVA_CPUS')           else cpus
-	disk                = int(os.environ['OS_NOVA_DISK'])                if os.environ.has_key('OS_NOVA_DISK')           else disk
-	haserver            = os.environ['OS_HA_SERVER']                     if os.environ.has_key('OS_HA_SERVER')           else haserver
-	hauser              = os.environ['OS_HA_USER']                       if os.environ.has_key('OS_HA_USER')             else hauser
-	hapassword          = os.environ['OS_HA_PASSWORD']                   if os.environ.has_key('OS_HA_PASSWORD')         else hapassword
-	haprivatekey        = os.environ['OS_HA_PRIVATEKEY']                 if os.environ.has_key('OS_HA_PRIVATEKEY')       else haprivatekey
-	haamqp              = os.environ['OS_HA_AMQP']                       if os.environ.has_key('OS_HA_AMQP')             else 'rabbitmq-server'
-	hafencewait         = int(os.environ['OS_HA_FENCEWAIT'])             if os.environ.has_key('OS_HA_FENCEWAIT')        else hafencewait
-	hafenceservers      = os.environ['OS_HA_FENCESERVERS'].split(',')    if os.environ.has_key('OS_HA_FENCESERVERS')     else None
-	hafencenames        = os.environ['OS_HA_FENCENAMES'].split(',')      if os.environ.has_key('OS_HA_FENCENAMES')       and hafenceservers is not None else None
-	hafenceusers	    = os.environ['OS_HA_FENCEUSERS'].split(',')	     if os.environ.has_key('OS_HA_FENCEUSERS')       and hafenceservers is not None else None
-	hafencepasswords    = os.environ['OS_HA_FENCEPASSWORDS'].split(',')  if os.environ.has_key('OS_HA_FENCEPASSWORDS')   and hafenceservers is not None  else None
-	hafencemodes	    = os.environ['OS_HA_FENCEMODES'].split(',')	     if os.environ.has_key('OS_HA_FENCEMODES')       and hafenceservers is not None else None
+	try:
+		keystonecredentials = _keystonecreds()
+		novacredentials     = _novacreds()
+		endpoint            = os.environ['OS_ENDPOINT_TYPE']                 if os.environ.has_key('OS_ENDPOINT_TYPE')       else 'publicURL'
+		keystonetests       = os.environ['OS_KEYSTONE_TESTS'].split(',')     if os.environ.has_key('OS_KEYSTONE_TESTS')      else keystonedefaulttests
+		glancetests         = os.environ['OS_GLANCE_TESTS'].split(',')       if os.environ.has_key('OS_GLANCE_TESTS')        else glancedefaulttests
+		cindertests         = os.environ['OS_CINDER_TESTS'].split(',')       if os.environ.has_key('OS_CINDER_TESTS')        else cinderdefaulttests
+		neutrontests        = os.environ['OS_NEUTRON_TESTS'].split(',')      if os.environ.has_key('OS_NEUTRON_TESTS')       else neutrondefaulttests
+		novatests           = os.environ['OS_NOVA_TESTS'].split(',')         if os.environ.has_key('OS_NOVA_TESTS')          else novadefaulttests
+		heattests           = os.environ['OS_HEAT_TESTS'].split(',')         if os.environ.has_key('OS_HEAT_TESTS')          else heatdefaulttests
+		swifttests          = os.environ['OS_SWIFT_TESTS'].split(',')        if os.environ.has_key('OS_SWIFT_TESTS')         else swiftdefaulttests
+		ceilometertests     = os.environ['OS_CEILOMETER_TESTS'].split(',')   if os.environ.has_key('OS_CEILOMETER_TESTS')    else ceilometerdefaulttests
+		hatests             = os.environ['OS_HA_TESTS'].split(',')           if os.environ.has_key('OS_HA_TESTS')            else hadefaulttests
+		imagepath           = os.environ['OS_GLANCE_IMAGE_PATH']             if os.environ.has_key('OS_GLANCE_IMAGE_PATH')   else None
+		imagesize           = int(os.environ['OS_GLANCE_IMAGE_SIZE'])        if os.environ.has_key('OS_GLANCE_IMAGE_SIZE')   else 10
+		volumetype          = os.environ['OS_CINDER_VOLUME_TYPE']            if os.environ.has_key('OS_CINDER_VOLUME_TYPE')  else None
+		externalnet         = os.environ['OS_NEUTRON_EXTERNALNET']           if os.environ.has_key('OS_NEUTRON_EXTERNALNET') else None
+		timeout             = int(os.environ['OS_TIMEOUT'])                  if os.environ.has_key('OS_TIMEOUT')             else timeout
+		ram                 = int(os.environ['OS_NOVA_RAM'])                 if os.environ.has_key('OS_NOVA_RAM')            else ram
+		cpus                = int(os.environ['OS_NOVA_CPUS'])                if os.environ.has_key('OS_NOVA_CPUS')           else cpus
+		disk                = int(os.environ['OS_NOVA_DISK'])                if os.environ.has_key('OS_NOVA_DISK')           else disk
+		haserver            = os.environ['OS_HA_SERVER']                     if os.environ.has_key('OS_HA_SERVER')           else haserver
+		hauser              = os.environ['OS_HA_USER']                       if os.environ.has_key('OS_HA_USER')             else hauser
+		hapassword          = os.environ['OS_HA_PASSWORD']                   if os.environ.has_key('OS_HA_PASSWORD')         else hapassword
+		haprivatekey        = os.environ['OS_HA_PRIVATEKEY']                 if os.environ.has_key('OS_HA_PRIVATEKEY')       else haprivatekey
+		haamqp              = os.environ['OS_HA_AMQP']                       if os.environ.has_key('OS_HA_AMQP')             else 'rabbitmq-server'
+		hafencewait         = int(os.environ['OS_HA_FENCEWAIT'])             if os.environ.has_key('OS_HA_FENCEWAIT')        else hafencewait
+		hafenceservers      = os.environ['OS_HA_FENCESERVERS'].split(',')    if os.environ.has_key('OS_HA_FENCESERVERS')     else None
+		hafencenames        = os.environ['OS_HA_FENCENAMES'].split(',')      if os.environ.has_key('OS_HA_FENCENAMES')       and hafenceservers is not None else None
+		hafenceusers	    = os.environ['OS_HA_FENCEUSERS'].split(',')	     if os.environ.has_key('OS_HA_FENCEUSERS')       and hafenceservers is not None else None
+		hafencepasswords    = os.environ['OS_HA_FENCEPASSWORDS'].split(',')  if os.environ.has_key('OS_HA_FENCEPASSWORDS')   and hafenceservers is not None  else None
+		hafencemodes	    = os.environ['OS_HA_FENCEMODES'].split(',')	     if os.environ.has_key('OS_HA_FENCEMODES')       and hafenceservers is not None else None
 
-#	except Exception as e:
-#		print "Missing environment variables. source your openrc file first"
-#		print e
-#	    	os._exit(1)
+	except Exception as e:
+		print "Missing environment variables. source your openrc file first"
+		print e
+	    	os._exit(1)
 	if info:
-		categories = ['OS_KEYSTONE_TESTS', 'OS_GLANCE_TESTS', 'OS_CINDER_TESTS', 'OS_NEUTRON_TESTS', 'OS_NOVA_TESTS', 'OS_HEAT_TESTS', 'OS_CEILOMETER_TESTS', 'OS_SWIFT_TESTS', 'OS_HA_TESTS']
+		categories = ['keystone', 'glance', 'cinder', 'neutron', 'nova', 'heat', 'ceilometer', 'swift', 'ha']
 		for key in sorted(os.environ):
-			if key in ['OS_TENANT_NAME', 'OS_USERNAME', 'OS_PASSWORD', 'OS_AUTH_URL', 'OS_REGION_NAME', 'OS_USERNAME']:
+			if key in ['OS_TENANT_NAME', 'OS_USERNAME', 'OS_PASSWORD', 'OS_AUTH_URL', 'OS_REGION_NAME', 'OS_USERNAME'] or key in categories:
 				continue
 			if key.startswith('OS_'):
 				print "%s=%s" % (key,os.environ[key])
-				if key in categories:
-					tests = os.environ[key].split(',')
-					for test in tests:	
-						if os.environ.has_key(test):
-							metric = os.environ[test]
-						else:
-							metric = '1:1'
-						print "%s=%s" % (test,metric)
+		for category in categories:
+			key = "OS_%s_TESTS" % category.upper()
+			if key in os.environ.keys():
+				tests = os.environ[key].split(',')
+			else:
+				tests = eval("%sdefaulttests" % category)
+			for test in tests:	
+				if os.environ.has_key(test):
+					metric = os.environ[test]
+				else:
+					metric = '1:1'
+				print "%s=%s" % (test,metric)
 		sys.exit(0)	
 	if listservices or testha:
 		embedded = False
