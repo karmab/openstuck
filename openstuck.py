@@ -47,7 +47,7 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIp', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Migrate_Server', 'Create_VolumeServer', 'Create_SnapshotServer', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIP', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Migrate_Server', 'Create_VolumeServer', 'Create_SnapshotServer', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Update_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -197,20 +197,16 @@ class Openstuck():
                 neutron           = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
 		if not self.embedded:
 				if not os.environ.has_key('OS_NOVA_FLAVOR')  and image:
-					print 'Missing OS_NOVA_FLAVOR environment variable pointing to an available flavor for running Create_Server/Create_Stack'
-					sys.exit(1)
+					raise Exception('Missing OS_NOVA_FLAVOR environment variable pointing to an available flavor for running Create_Server/Create_Stack')
 				if not os.environ.has_key('OS_NOVA_IMAGE')  and image:
-					print 'Missing OS_NOVA_IMAGE environment variable pointing to an available image for running Create_Server/Create_Stack'
-					sys.exit(1)
+					raise Exception('Missing OS_NOVA_IMAGE environment variable pointing to an available image for running Create_Server/Create_Stack')
 				if not os.environ.has_key('OS_NOVA_NETWORK'):
-					print 'Missing OS_NOVA_NETWORK environment variable pointing to an available network for running Create_Server/Create_Stack'
-					sys.exit(1)
+					raise Exception('Missing OS_NOVA_NETWORK environment variable pointing to an available network for running Create_Server/Create_Stack')
 				if not os.environ.has_key('OS_NOVA_VOLUME') and volume:
-					print 'Missing OS_NOVA_VOLUME environment variable pointing to an existing volume for running Create_VolumeServer/Create_Stack'
-					sys.exit(1)
+					raise Exception('Missing OS_NOVA_VOLUME environment variable pointing to an existing volume for running Create_VolumeServer/Create_Stack')
 				if not os.environ.has_key('OS_NOVA_SNAPSHOT'):
-					print 'Missing OS_NOVA_SNAPSHOT environment variable pointing to an available snapshot for running Create_Server/Create_Stack'
-					sys.exit(1)
+					raise Exception('Missing OS_NOVA_SNAPSHOT environment variable pointing to an available snapshot for running Create_Server/Create_Stack')
+				return
 		if not self.embeddedobjects.has_key('flavor'):
 			flavor1 = nova.flavors.create(name=novaflavor1,ram=self.ram,vcpus=self.cpus,disk=self.disk)
 			flavor2 = nova.flavors.create(name=novaflavor2,ram=self.ram*2,vcpus=self.cpus*2,disk=self.disk)
@@ -464,7 +460,7 @@ class Openstuck():
 			print "Add_FlavorAccess: %s %s seconds %s" % (flavor, runningtime, results )
 			output.append(['nova', 'Add_FlavorAccess', flavor, flavor, runningtime, results,])
 
-	def Add_FloatingIp(self, nova, server, floatings, errors=None, output=None, verbose=False, timeout=20):
+	def Add_FloatingIP(self, nova, server, floatings, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if server is None:
 			errors.append('Add_FloatingIP')
@@ -483,6 +479,8 @@ class Openstuck():
 					externalid  = externalnets[0]['id']
 					floating_ip = nova.floating_ips.create(externalid)
 					floatings.append(floating_ip.id)
+				else:
+					raise Exception("External net %s not found" % self.externalnet)
 			else:
 				raise Exception('Missing External net.set OS_NEUTRON_EXTERNALNET env variable?')
 			server.add_floating_ip(floating_ip)
@@ -1554,7 +1552,7 @@ class Openstuck():
 			return
 		try:
 			flavor2 = nova.flavors.find(name="%s-flavor2" % self.project)
-			servers.resize(flavor2)
+			server.resize(flavor2)
 			o._available(nova.servers, server.id, timeout, status='RESIZE')
 			results = 'OK'
 		except Exception as error:
@@ -2028,7 +2026,7 @@ class Openstuck():
 			return
 		try:
 			flavor1 = nova.flavors.find("%s-flavor1" % self.project)
-			servers.resize(flavor1)
+			server.resize(flavor1)
 			o._available(nova.servers, server.id, timeout, status='RESIZE')
 			results = 'OK'
 		except Exception as error:
@@ -3256,13 +3254,13 @@ class Openstuck():
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
 
-		test    = 'Add_FloatingIp'
+		test    = 'Add_FloatingIP'
 		reftest = 'Create_Server'
 		if test in tests:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
-			jobs = [ multiprocessing.Process(target=self.Add_FloatingIp, args=(nova, server, floatings, errors, output, self.verbose, timeout, )) for server in servers ]
+			jobs = [ multiprocessing.Process(target=self.Add_FloatingIP, args=(nova, server, floatings, errors, output, self.verbose, timeout, )) for server in servers ]
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
