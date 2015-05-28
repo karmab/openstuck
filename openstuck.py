@@ -439,7 +439,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Add_FlavorAccess')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
@@ -471,7 +471,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Add_FloatingIP')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -492,7 +492,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Add_Role')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
@@ -513,7 +513,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Authenticate_User')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -535,7 +535,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Check_Console')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -557,7 +557,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Check_Novnc')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -582,7 +582,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Check_Connectivity')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -613,7 +613,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Check_SSH')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -628,7 +628,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Alarm')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			alarms.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -659,7 +659,7 @@ class Openstuck():
 			backups.append(None)
 		except Exception as error:
 			errors.append('Create_Backup')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			backups.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -682,7 +682,7 @@ class Openstuck():
 			containers.append(container)
 		except Exception as error:
 			errors.append('Create_Container')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			containers.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -698,7 +698,7 @@ class Openstuck():
 			flavors.append(newflavor.id)
 		except Exception as error:
 			errors.append('Create_Flavor')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			flavors.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -719,7 +719,7 @@ class Openstuck():
 			images.append(newimage.id)
 		except Exception as error:
 			errors.append('Create_Image')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			images.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -734,7 +734,7 @@ class Openstuck():
 			keypairs.append(newkeypair.id)
 		except Exception as error:
 			errors.append('Create_KeyPair')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			keypairs.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -751,7 +751,7 @@ class Openstuck():
 			networks.append(newnetwork['network']['id'])
 		except Exception as error:
 			errors.append('Create_Network')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			networks.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -766,7 +766,7 @@ class Openstuck():
 			roles.append(role.id)
 		except Exception as error:
 			errors.append('Create_Role')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			roles.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -796,7 +796,7 @@ class Openstuck():
 			routers.append(routerid)
 		except Exception as error:
 			errors.append('Create_Router')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			routers.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -811,7 +811,7 @@ class Openstuck():
 			securitygroups.append(newsecuritygroup['security_group']['id'])
 		except Exception as error:
 			errors.append('Create_SecurityGroup')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			securitygroups.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -846,7 +846,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Server')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			servers.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -881,7 +881,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_SnapshotServer')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			servers.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -916,7 +916,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_VolumeServer')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			servers.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -948,7 +948,7 @@ class Openstuck():
 			snapshots.append(None)
 		except Exception as error:
 			errors.append('Create_Snapshot')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			snapshots.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -986,7 +986,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Stack')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			stacks.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -1009,7 +1009,7 @@ class Openstuck():
 			subnets.append(newsubnet['subnet']['id'])
 		except Exception as error:
 			errors.append('Create_Subnet')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			subnets.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -1024,7 +1024,7 @@ class Openstuck():
 			tenants.append(tenant.id)
 		except Exception as error:
 			errors.append('Create_Tenant')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			tenants.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -1047,7 +1047,7 @@ class Openstuck():
                         o._available(cinder.volumes, newvolume.id, timeout)
 		except Exception as error:
 			errors.append('Create_TypedVolume')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			volumes.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -1070,7 +1070,7 @@ class Openstuck():
 			users.append(user.id)
 		except Exception as error:
 			errors.append('Create_User')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			users.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -1086,7 +1086,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Volume')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			volumes.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -1113,7 +1113,7 @@ class Openstuck():
                         o._available(cinder.volumes, newvolume.id, timeout)
 		except Exception as error:
 			errors.append('Create_Volume_From_Snapshot')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 			volumes.append(None)
 		if verbose:
 			endtime     = time.time()
@@ -1135,7 +1135,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Alarm')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1162,7 +1162,7 @@ class Openstuck():
 		except Exception as error:
 		        print error
 			errors.append('Delete_Backup')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1187,7 +1187,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Container')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1209,7 +1209,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Flavor')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1231,7 +1231,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Image')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1253,7 +1253,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_KeyPair')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1276,7 +1276,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Network')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1298,7 +1298,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_SecurityGroup')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1319,7 +1319,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Role')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1347,7 +1347,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Router')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1372,7 +1372,7 @@ class Openstuck():
 				errors.append('Delete_Server')
 		except Exception as error:
 			errors.append('Delete_Server')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1398,7 +1398,7 @@ class Openstuck():
 				errors.append('Delete_Snapshot')
 		except Exception as error:
 			errors.append('Delete_Snapshot')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1425,7 +1425,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Stack')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1448,7 +1448,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Subnet')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1469,7 +1469,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Tenant')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
@@ -1490,7 +1490,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_User')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
@@ -1516,7 +1516,7 @@ class Openstuck():
 				errors.append('Delete_Volume')
 		except Exception as error:
 			errors.append('Delete_Volume')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1539,7 +1539,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Grow_Server')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1560,7 +1560,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Grow_Volume')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1581,7 +1581,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Alarm')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1601,7 +1601,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Backup')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1622,7 +1622,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Flavor')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1643,7 +1643,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Container')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1663,7 +1663,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Image')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1683,7 +1683,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_KeyPair')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1697,7 +1697,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Meter')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1721,7 +1721,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Network')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1741,7 +1741,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Role')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1763,7 +1763,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Server')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1783,7 +1783,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Snapshot')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1805,7 +1805,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Stack')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1830,7 +1830,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Subnet')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1854,7 +1854,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Router')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1874,7 +1874,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Volume')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1898,7 +1898,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Migrate_Server')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -1921,7 +1921,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Reach_StorageQuota')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
@@ -1943,7 +1943,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Reach_StorageQuota')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
@@ -1958,7 +1958,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Remove_FlavorAccess')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
@@ -1988,7 +1988,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Restore_Backup')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
@@ -2011,7 +2011,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Shrink_Server')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
@@ -2055,7 +2055,7 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Stack')
-			results = str(error)
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
