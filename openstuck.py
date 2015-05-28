@@ -79,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',amqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -155,7 +155,7 @@ class Openstuck():
 		self.ram              = ram
 		self.cpus             = cpus
 		self.disk             = disk
-		self.amqp             = amqp
+		self.haamqp           = haamqp
 		self.haserver	      = haserver
 		self.hauser	      = hauser
 		self.hapassword	      = hapassword
@@ -3621,7 +3621,7 @@ class Openstuck():
 
 		test    = 'Stop_Amqp'
 		reftest = test
-		service = self.amqp
+		service = self.haamqp
 		if test in tests:
 			starttime = time.time()
 			if verbose:
@@ -3782,7 +3782,6 @@ if __name__ == "__main__":
 	testinggroup = optparse.OptionGroup(parser, 'Testing options')
 	testinggroup.add_option('-A', '--availability', dest='testha', action='store_true',default=False, help='Test High Availability')
         testinggroup.add_option('-C', '--cinder', dest='testcinder', action='store_true',default=False, help='Test Cinder')
-	testinggroup.add_option('-E', '--all', dest='testall', action='store_true',default=False, help='Test All')
 	testinggroup.add_option('-G', '--glance', dest='testglance', action='store_true',default=False, help='Test Glance')
 	testinggroup.add_option('-H', '--heat', dest='testheat', action='store_true',default=False, help='Test Heat')
 	testinggroup.add_option('-K', '--keystone', dest='testkeystone', action='store_true',default=False, help='Test Keystone')
@@ -3790,6 +3789,7 @@ if __name__ == "__main__":
 	testinggroup.add_option('-Q', '--neutron', dest='testneutron', action='store_true',default=False, help='Test Neutron')
 	testinggroup.add_option('-S', '--swift', dest='testswift', action='store_true',default=False, help='Test Swift')
 	testinggroup.add_option('-X', '--ceilometer', dest='testceilometer', action='store_true',default=False, help='Test Ceilometer')
+	testinggroup.add_option('-Z', '--all', dest='testall', action='store_true',default=False, help='Test All')
 	parser.add_option_group(testinggroup)
 	novagroup = optparse.OptionGroup(parser, 'Nova Flavor Testing options')
 	novagroup.add_option('-d', '--disk', dest='disk', default='20', type='int', help='Flavor Disk for nova tests. Defaults to env[NOVA_DISK] or 20 otherwise')
@@ -3802,6 +3802,7 @@ if __name__ == "__main__":
 	hagroup.add_option('-3', '--hapassword', dest='hapassword', type='string', help='Hapassword for ha tests. Defaults to env[OS_HA_PASSWORD]')
 	hagroup.add_option('-4', dest='haprivatekey', type='string', help='Ha privatekey file. Defaults env[OS_HA_PRIVATEKEY]')
 	parser.add_option_group(hagroup)
+	parser.add_option('-i', '--info', dest='info', default=False, action='store_true', help='Print current environment variables values')
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. Defaults to acme')
 	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] or 80 otherwise')
 	parser.add_option('-w', '--fencewait', dest='hafencewait', default=0, type='int', help='Time to wait between fence steps. Defaults to env[OS_HA_FENCEWAIT] or 0 otherwise')
@@ -3822,6 +3823,7 @@ if __name__ == "__main__":
 	testall          = options.testall
 	project          = options.project
 	verbose          = options.verbose
+	info             = options.info
 	clouduser        = options.clouduser
 	timeout          = options.timeout
 	ram              = options.ram
@@ -3833,47 +3835,63 @@ if __name__ == "__main__":
 	hauser		 = options.hauser
 	hapassword	 = options.hapassword
 	haprivatekey	 = options.haprivatekey
-	try:
-		keystonecredentials = _keystonecreds()
-		novacredentials     = _novacreds()
-		endpoint            = os.environ['OS_ENDPOINT_TYPE']                 if os.environ.has_key('OS_ENDPOINT_TYPE')       else 'publicURL'
-		keystonetests       = os.environ['OS_KEYSTONE_TESTS'].split(',')     if os.environ.has_key('OS_KEYSTONE_TESTS')      else keystonedefaulttests
-		glancetests         = os.environ['OS_GLANCE_TESTS'].split(',')       if os.environ.has_key('OS_GLANCE_TESTS')        else glancedefaulttests
-		cindertests         = os.environ['OS_CINDER_TESTS'].split(',')       if os.environ.has_key('OS_CINDER_TESTS')        else cinderdefaulttests
-		neutrontests        = os.environ['OS_NEUTRON_TESTS'].split(',')      if os.environ.has_key('OS_NEUTRON_TESTS')       else neutrondefaulttests
-		novatests           = os.environ['OS_NOVA_TESTS'].split(',')         if os.environ.has_key('OS_NOVA_TESTS')          else novadefaulttests
-		heattests           = os.environ['OS_HEAT_TESTS'].split(',')         if os.environ.has_key('OS_HEAT_TESTS')          else heatdefaulttests
-		swifttests          = os.environ['OS_SWIFT_TESTS'].split(',')        if os.environ.has_key('OS_SWIFT_TESTS')         else swiftdefaulttests
-		ceilometertests     = os.environ['OS_CEILOMETER_TESTS'].split(',')   if os.environ.has_key('OS_CEILOMETER_TESTS')    else ceilometerdefaulttests
-		hatests             = os.environ['OS_HA_TESTS'].split(',')           if os.environ.has_key('OS_HA_TESTS')            else hadefaulttests
-		imagepath           = os.environ['OS_GLANCE_IMAGE_PATH']             if os.environ.has_key('OS_GLANCE_IMAGE_PATH')   else None
-		imagesize           = int(os.environ['OS_GLANCE_IMAGE_SIZE'])        if os.environ.has_key('OS_GLANCE_IMAGE_SIZE')   else 10
-		volumetype          = os.environ['OS_CINDER_VOLUME_TYPE']            if os.environ.has_key('OS_CINDER_VOLUME_TYPE')  else None
-		externalnet         = os.environ['OS_NEUTRON_EXTERNALNET']           if os.environ.has_key('OS_NEUTRON_EXTERNALNET') else None
-		timeout             = int(os.environ['OS_TIMEOUT'])                  if os.environ.has_key('OS_TIMEOUT')             else timeout
-		ram                 = int(os.environ['OS_NOVA_RAM'])                 if os.environ.has_key('OS_NOVA_RAM')            else ram
-		cpus                = int(os.environ['OS_NOVA_CPUS'])                if os.environ.has_key('OS_NOVA_CPUS')           else cpus
-		disk                = int(os.environ['OS_NOVA_DISK'])                if os.environ.has_key('OS_NOVA_DISK')           else disk
-		amqp                = int(os.environ['OS_NOVA_AMQP'])                if os.environ.has_key('OS_NOVA_AMQP')           else 'rabbitmq-server'
-		haserver            = os.environ['OS_HA_SERVER']                     if os.environ.has_key('OS_HA_SERVER')           else haserver
-		hauser              = os.environ['OS_HA_USER']                       if os.environ.has_key('OS_HA_USER')             else hauser
-		hapassword          = os.environ['OS_HA_PASSWORD']                   if os.environ.has_key('OS_HA_PASSWORD')         else hapassword
-		haprivatekey        = os.environ['OS_HA_PRIVATEKEY']                 if os.environ.has_key('OS_HA_PRIVATEKEY')       else haprivatekey
-		hafencewait         = int(os.environ['OS_HA_FENCEWAIT'])             if os.environ.has_key('OS_HA_FENCEWAIT')        else hafencewait
-		hafenceservers      = os.environ['OS_HA_FENCESERVERS'].split(',')    if os.environ.has_key('OS_HA_FENCESERVERS')     else None
-		hafencenames        = os.environ['OS_HA_FENCENAMES'].split(',')      if os.environ.has_key('OS_HA_FENCENAMES')       and hafenceservers is not None else None
-		hafenceusers	    = os.environ['OS_HA_FENCEUSERS'].split(',')	     if os.environ.has_key('OS_HA_FENCEUSERS')       and hafenceservers is not None else None
-		hafencepasswords    = os.environ['OS_HA_FENCEPASSWORDS'].split(',')  if os.environ.has_key('OS_HA_FENCEPASSWORDS')   and hafenceservers is not None  else None
-		hafencemodes	    = os.environ['OS_HA_FENCEMODES'].split(',')	     if os.environ.has_key('OS_HA_FENCEMODES')       and hafenceservers is not None else None
+	#try:
+	keystonecredentials = _keystonecreds()
+	novacredentials     = _novacreds()
+	endpoint            = os.environ['OS_ENDPOINT_TYPE']                 if os.environ.has_key('OS_ENDPOINT_TYPE')       else 'publicURL'
+	keystonetests       = os.environ['OS_KEYSTONE_TESTS'].split(',')     if os.environ.has_key('OS_KEYSTONE_TESTS')      else keystonedefaulttests
+	glancetests         = os.environ['OS_GLANCE_TESTS'].split(',')       if os.environ.has_key('OS_GLANCE_TESTS')        else glancedefaulttests
+	cindertests         = os.environ['OS_CINDER_TESTS'].split(',')       if os.environ.has_key('OS_CINDER_TESTS')        else cinderdefaulttests
+	neutrontests        = os.environ['OS_NEUTRON_TESTS'].split(',')      if os.environ.has_key('OS_NEUTRON_TESTS')       else neutrondefaulttests
+	novatests           = os.environ['OS_NOVA_TESTS'].split(',')         if os.environ.has_key('OS_NOVA_TESTS')          else novadefaulttests
+	heattests           = os.environ['OS_HEAT_TESTS'].split(',')         if os.environ.has_key('OS_HEAT_TESTS')          else heatdefaulttests
+	swifttests          = os.environ['OS_SWIFT_TESTS'].split(',')        if os.environ.has_key('OS_SWIFT_TESTS')         else swiftdefaulttests
+	ceilometertests     = os.environ['OS_CEILOMETER_TESTS'].split(',')   if os.environ.has_key('OS_CEILOMETER_TESTS')    else ceilometerdefaulttests
+	hatests             = os.environ['OS_HA_TESTS'].split(',')           if os.environ.has_key('OS_HA_TESTS')            else hadefaulttests
+	imagepath           = os.environ['OS_GLANCE_IMAGE_PATH']             if os.environ.has_key('OS_GLANCE_IMAGE_PATH')   else None
+	imagesize           = int(os.environ['OS_GLANCE_IMAGE_SIZE'])        if os.environ.has_key('OS_GLANCE_IMAGE_SIZE')   else 10
+	volumetype          = os.environ['OS_CINDER_VOLUME_TYPE']            if os.environ.has_key('OS_CINDER_VOLUME_TYPE')  else None
+	externalnet         = os.environ['OS_NEUTRON_EXTERNALNET']           if os.environ.has_key('OS_NEUTRON_EXTERNALNET') else None
+	timeout             = int(os.environ['OS_TIMEOUT'])                  if os.environ.has_key('OS_TIMEOUT')             else timeout
+	ram                 = int(os.environ['OS_NOVA_RAM'])                 if os.environ.has_key('OS_NOVA_RAM')            else ram
+	cpus                = int(os.environ['OS_NOVA_CPUS'])                if os.environ.has_key('OS_NOVA_CPUS')           else cpus
+	disk                = int(os.environ['OS_NOVA_DISK'])                if os.environ.has_key('OS_NOVA_DISK')           else disk
+	haserver            = os.environ['OS_HA_SERVER']                     if os.environ.has_key('OS_HA_SERVER')           else haserver
+	hauser              = os.environ['OS_HA_USER']                       if os.environ.has_key('OS_HA_USER')             else hauser
+	hapassword          = os.environ['OS_HA_PASSWORD']                   if os.environ.has_key('OS_HA_PASSWORD')         else hapassword
+	haprivatekey        = os.environ['OS_HA_PRIVATEKEY']                 if os.environ.has_key('OS_HA_PRIVATEKEY')       else haprivatekey
+	haamqp              = os.environ['OS_HA_AMQP']                       if os.environ.has_key('OS_HA_AMQP')             else 'rabbitmq-server'
+	hafencewait         = int(os.environ['OS_HA_FENCEWAIT'])             if os.environ.has_key('OS_HA_FENCEWAIT')        else hafencewait
+	hafenceservers      = os.environ['OS_HA_FENCESERVERS'].split(',')    if os.environ.has_key('OS_HA_FENCESERVERS')     else None
+	hafencenames        = os.environ['OS_HA_FENCENAMES'].split(',')      if os.environ.has_key('OS_HA_FENCENAMES')       and hafenceservers is not None else None
+	hafenceusers	    = os.environ['OS_HA_FENCEUSERS'].split(',')	     if os.environ.has_key('OS_HA_FENCEUSERS')       and hafenceservers is not None else None
+	hafencepasswords    = os.environ['OS_HA_FENCEPASSWORDS'].split(',')  if os.environ.has_key('OS_HA_FENCEPASSWORDS')   and hafenceservers is not None  else None
+	hafencemodes	    = os.environ['OS_HA_FENCEMODES'].split(',')	     if os.environ.has_key('OS_HA_FENCEMODES')       and hafenceservers is not None else None
 
-	except Exception as e:
-		print "Missing environment variables. source your openrc file first"
-		print e
-	    	os._exit(1)
+#	except Exception as e:
+#		print "Missing environment variables. source your openrc file first"
+#		print e
+#	    	os._exit(1)
+	if info:
+		categories = ['OS_KEYSTONE_TESTS', 'OS_GLANCE_TESTS', 'OS_CINDER_TESTS', 'OS_NEUTRON_TESTS', 'OS_NOVA_TESTS', 'OS_HEAT_TESTS', 'OS_CEILOMETER_TESTS', 'OS_SWIFT_TESTS', 'OS_HA_TESTS']
+		for key in sorted(os.environ):
+			if key in ['OS_TENANT_NAME', 'OS_USERNAME', 'OS_PASSWORD', 'OS_AUTH_URL', 'OS_REGION_NAME', 'OS_USERNAME']:
+				continue
+			if key.startswith('OS_'):
+				print "%s=%s" % (key,os.environ[key])
+				if key in categories:
+					tests = os.environ[key].split(',')
+					for test in tests:	
+						if os.environ.has_key(test):
+							metric = os.environ[test]
+						else:
+							metric = '1:1'
+						print "%s=%s" % (test,metric)
+		sys.exit(0)	
 	if listservices or testha:
 		embedded = False
-	o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, amqp=amqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes , hafencewait=hafencewait)
-	#testing
+	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testceilometer or testswift or testha or testall or listservices:
+		o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, haamqp=haamqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes , hafencewait=hafencewait)
 	if listservices:
 		if o.admin:
 			o.listservices()
@@ -3949,5 +3967,4 @@ if __name__ == "__main__":
 		#if embedded:	
 		if testnova or testheat:
 			o._novaafter()
-		if o.admin:
-			o._clean()
+		o._clean()

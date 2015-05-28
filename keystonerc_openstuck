@@ -43,9 +43,8 @@ export OS_NOVA_SNAPSHOT=snapshot
 export OS_NOVA_VOLUME=cirros
 export OS_NEUTRON_EXTERNALNET=public
 export OS_NOVA_RAM=512     
-export 'OS_NOVA_CPUS=2   
+export OS_NOVA_CPUS=2   
 export OS_NOVA_DISK=10      
-export OS_NOVA_AMQP=qpid
 
 # SWIFT
 #object path to upload in swift test
@@ -56,7 +55,8 @@ export OS_HA_SERVER=192.168.2.1
 export OS_HA_USER=root                       
 export OS_HA_PASSWORD=coco                 
 export OS_HA_PRIVATEKEY=/root/.ssh/id_rsa         
-export on['OS_HA_FENCEWAIT=20             
+export OS_HA_AMQP=qpid
+export OS_HA_FENCEWAIT=20             
 export OS_HA_FENCESERVERS=192.168.1.2,192.168.1.3,192.168.1.4
 export OS_HA_FENCENAMES=controller1,controller2,controller3    
 export OS_HA_FENCEUSERS=root,root,root
