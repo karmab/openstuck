@@ -28,7 +28,7 @@ export OS_CEILOMETER_TIMEOUT=80
 export OS_HA_TIMEOUT=80
 
 # GLANCE
-export OS_GLANCE_IMAGE_PATH=/tmp/cirros.img
+export OS_GLANCE_IMAGE_PATH=/home/kboumedh/Downloads/cirros.img
 export OS_GLANCE_IMAGE_SIZE=10
 
 # CINDER 

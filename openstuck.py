@@ -3873,19 +3873,19 @@ if __name__ == "__main__":
 		print e
 	    	os._exit(1)
 	if info:
-		categories = ['keystone', 'glance', 'cinder', 'neutron', 'nova', 'heat', 'ceilometer', 'swift', 'ha']
+		categories = ['OS_KEYSTONE_TESTS', 'OS_GLANCE_TESTS', 'OS_CINDER_TESTS', 'OS_NEUTRON_TESTS', 'OS_NOVA_TESTS', 'OS_HEAT_TESTS', 'OS_CEILOMETER_TESTS', 'OS_SWIFT_TESTS','OS_HA_TESTS']
 		for key in sorted(os.environ):
 			if key in ['OS_TENANT_NAME', 'OS_USERNAME', 'OS_PASSWORD', 'OS_AUTH_URL', 'OS_REGION_NAME', 'OS_USERNAME'] or key in categories:
 				continue
 			if key.startswith('OS_'):
 				print "%s=%s" % (key,os.environ[key])
 		for category in categories:
-			key = "OS_%s_TESTS" % category.upper()
-			if key in os.environ.keys():
-				tests = os.environ[key].split(',')
+			if category in os.environ.keys():
+				tests = os.environ[category].split(',')
 			else:
-				tests = eval("%sdefaulttests" % category)
-			print "%s=%s" % (key,','.join(tests))
+				category = "OS_%s_TESTS" % category.upper()
+				tests    = eval("%sdefaulttests" % category)
+			print "%s=%s" % (category,','.join(tests))
 			for test in tests:	
 				if os.environ.has_key(test):
 					metric = os.environ[test]
