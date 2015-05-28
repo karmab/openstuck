@@ -195,6 +195,22 @@ class Openstuck():
 		cinder            = cinderclient.Client(**cindercredentials)
                 neutronendpoint   = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron           = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
+		if not self.embedded:
+				if not os.environ.has_key('OS_NOVA_FLAVOR')  and image:
+					print 'Missing OS_NOVA_FLAVOR environment variable pointing to an available flavor for running Create_Server/Create_Stack'
+					sys.exit(1)
+				if not os.environ.has_key('OS_NOVA_IMAGE')  and image:
+					print 'Missing OS_NOVA_IMAGE environment variable pointing to an available image for running Create_Server/Create_Stack'
+					sys.exit(1)
+				if not os.environ.has_key('OS_NOVA_NETWORK'):
+					print 'Missing OS_NOVA_NETWORK environment variable pointing to an available network for running Create_Server/Create_Stack'
+					sys.exit(1)
+				if not os.environ.has_key('OS_NOVA_VOLUME') and volume:
+					print 'Missing OS_NOVA_VOLUME environment variable pointing to an existing volume for running Create_VolumeServer/Create_Stack'
+					sys.exit(1)
+				if not os.environ.has_key('OS_NOVA_SNAPSHOT'):
+					print 'Missing OS_NOVA_SNAPSHOT environment variable pointing to an available snapshot for running Create_Server/Create_Stack'
+					sys.exit(1)
 		if not self.embeddedobjects.has_key('flavor'):
 			flavor1 = nova.flavors.create(name=novaflavor1,ram=self.ram,vcpus=self.cpus,disk=self.disk)
 			flavor2 = nova.flavors.create(name=novaflavor2,ram=self.ram*2,vcpus=self.cpus*2,disk=self.disk)
@@ -824,11 +840,11 @@ class Openstuck():
 		try:
 			if not embedded:
 				keypairname = None
-				image       = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
+				image       = os.environ['OS_NOVA_IMAGE']
 				image       = nova.images.find(name=image)
-				network     = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+				network     = os.environ['OS_NOVA_NETWORK']
 				networkid   = nova.networks.find(label=network).id
-				flavor  = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
+				flavor  = os.environ['OS_NOVA_FLAVOR']
 				flavor  = nova.flavors.find(name=flavor)
 			else:
 				flavorname  = "%s-flavor1" % self.project
@@ -860,9 +876,9 @@ class Openstuck():
 		try:
 			if not embedded:
 				keypairname = None
-				snapshot    = os.environ['OS_NOVA_SNAPSHOT']   if os.environ.has_key('OS_NOVA_SNAPSHOT') else 'cirros'
+				snapshot    = os.environ['OS_NOVA_SNAPSHOT']
 				snapshot    = cinder.volume_snapshots.find(name=snapshot)
-				network     = os.environ['OS_NOVA_NETWORK']    if os.environ.has_key('OS_NOVA_NETWORK')  else 'private'
+				network     = os.environ['OS_NOVA_NETWORK']
 				networkid   = nova.networks.find(label=network).id
 			else:
 				flavorname    = "%s-flavor1" % self.project
@@ -895,9 +911,9 @@ class Openstuck():
 		try:
 			if not embedded:
 				keypairname = None
-				volume      = os.environ['OS_NOVA_VOLUME']   if os.environ.has_key('OS_NOVA_VOLUME')   else 'cirros'
+				volume      = os.environ['OS_NOVA_VOLUME']
 				volume      = cinder.volumes.find(name=volume)
-				network     = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
+				network     = os.environ['OS_NOVA_NETWORK']
 				networkid   = nova.networks.find(label=network).id
 			else:
 				flavorname  = "%s-flavor1" % self.project
@@ -962,9 +978,9 @@ class Openstuck():
 			template  = os.environ['OS_HEAT_TEMPLATE']   if os.environ.has_key('OS_HEAT_TEMPLATE')   else None
 			if template is None:
 				if not embedded:
-					image     = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
-					network   = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
-					flavor1   = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.tiny'
+					image     = os.environ['OS_NOVA_IMAGE']
+					network   = os.environ['OS_NOVA_NETWORK']
+					flavor1   = os.environ['OS_NOVA']
 				else:
 					image     = "%s-image" % self.project
 					network   = "%s-net" % self.project
@@ -3939,8 +3955,8 @@ if __name__ == "__main__":
 			sys.exit(1)
 		flavors, keypairs, servers, volumeservers, snapshotservers, floatings = o.novatest()
 	if testheat or testall:
-		if o.embedded:
-			o._novabefore(externalnet=externalnet, image=True, volume=False, snapshot=False)
+		#if o.embedded:
+		o._novabefore(externalnet=externalnet, image=True, volume=False, snapshot=False)
 		stacks = o.heattest()
 	if testceilometer or testceilometer:
 		alarms = o.ceilometertest()
