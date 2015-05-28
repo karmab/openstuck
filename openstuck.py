@@ -223,6 +223,8 @@ class Openstuck():
 			image           = glance.images.create(name=novaimage, visibility='private', disk_format='qcow2',container_format='bare')
 			self.embeddedobjects['image'] = image.id
 			with open(imagepath,'rb') as data:
+				if self.verbose:
+					print 'Uploading image prior to testing'
 				glance.images.upload(image.id, data)
 			o._available(glance.images, image.id, timeout,status='active')
 			if not self.embeddedobjects.has_key('volume') and volume:
@@ -729,6 +731,8 @@ class Openstuck():
 				raise Exception('Missing OS_GLANCE_IMAGE_PATH environment variable')
 			newimage = glance.images.create(name=image, visibility='private', disk_format='qcow2',container_format='bare')
 			with open(imagepath,'rb') as data:
+				if self.verbose:
+					print 'Uploading image'
 				glance.images.upload(newimage.id, data)
 			o._available(glance.images, newimage.id, timeout,status='active')
 			results = 'OK'
