@@ -66,9 +66,12 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 
 ##TODO LIST 
 
+
+- IMPORTANT: handle better errors in novabefore and make sure to delete elements like tenant and other resources created there
 - improve values for testing alarms creation (threshold and metrics with some sense)
 - handle specifically known exceptions instead of beeing generic
 - Create a dedicated metadata check with a script that does a echo in /dev/ttyS0
+
 
 ##Known bugs
 - Create_Backup race condition giving a "Invalid volume: Volume to be backed up must be available" message

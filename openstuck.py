@@ -47,7 +47,7 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIP', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Migrate_Server', 'Create_VolumeServer', 'Create_SnapshotServer', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIP', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Migrate_Server', 'Attach_Volume', 'Detach_Volume', 'Create_VolumeServer', 'Create_SnapshotServer', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Update_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -514,6 +514,32 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Add_Role: %s to %s %s seconds %s" % (role.name, user.name, runningtime, results)
 			output.append(['keystone', 'Add_Role', role.name, role.name, runningtime, results,])
+
+	def Attach_Volume(self, nova, server, attachedvolumes, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		cinder = cinderclient.Client(**self.novacredentials)
+		if server is None:
+			errors.append('Attach_Volume')
+			results = 'NotRun'
+			if verbose:
+				print "Attach_Volume: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Attach_Volume', 'N/A', 'N/A', '0', results,])
+			return
+		try:
+			attachedvolume = cinder.volumes.create(size=1, name="attachedvolume-%s" % server.name)
+			attachedvolumes.append(attachedvolume.id)
+			o._available(cinder.volumes, attachedvolume.id, timeout)
+			attachedvolume.attach(server.id,'vdb')
+			o._available(nova.servers, server.id, timeout, status='ACTIVE')
+			results = 'OK'
+		except Exception as error:
+			errors.append('Attach_Volume')
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			output.append(['nova', 'Attach_Volume', server.name, server.name, runningtime, results,])
+
 	def Authenticate_User(self, user, password, auth_url, tenant=None, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if user is None or tenant is None:
@@ -1541,6 +1567,33 @@ class Openstuck():
 			print "Delete_Volume: %s %s seconds %s" % (volumename, runningtime, results)
 			output.append(['cinder', 'Delete_Volume', volumename, volumename, runningtime, results,])
 
+	def Detach_Volume(self, nova, server, attachedvolumes, errors=None, output=None, verbose=False, timeout=20):
+		starttime = time.time()
+		cinder = cinderclient.Client(**self.novacredentials)
+		if server is None:
+			errors.append('Detach_Volume')
+			results = 'NotRun'
+			if verbose:
+				print "Detach_Volume: %s 0 seconds" % 'N/A'
+				output.append(['nova', 'Detach_Volume', 'N/A', 'N/A', '0', results,])
+			return
+		try:
+			for volume in attachedvolumes:
+				for attachment in volume.attachments:
+					if server.id == attachment['server_id']:
+						volume.detach()
+						o._available(cinder.volumes, volume.id, timeout)
+				o._available(nova.servers, server.id, timeout, status='ACTIVE')
+			results = 'OK'
+		except Exception as error:
+			errors.append('Detach_Volume')
+			results = error if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose:
+			endtime     = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			print "Detach_Volume: %s %s seconds %s" % (server.name, runningtime, results)
+			output.append(['nova', 'Detach_Volume', server.name, server.name, runningtime, results,])
+
 	def Grow_Server(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
 		starttime = time.time()
 		if server is None:
@@ -2282,7 +2335,7 @@ class Openstuck():
 					neutron.security_groups.delete(securitygroup['id'])
 				except:
 					continue
-	def novaclean(self, flavors, keypairs, servers, volumeservers, snapshotservers, floatings):
+	def novaclean(self, flavors, keypairs, servers, volumeservers, snapshotservers, attachedvolumes, floatings):
 		if self.verbose:
 			print "Cleaning Nova..."
 		nova     = novaclient.Client('2', **self.novacredentials)
@@ -2332,6 +2385,14 @@ class Openstuck():
 			else:
 				try:
 					nova.servers.delete(flavor.id)
+				except:
+					continue
+		for attachedvolume in attachedvolumes:
+			if attachedvolume is None:
+				continue
+			else:
+				try:
+					cinder.volume.delete(attachedvolume.id)
 				except:
 					continue
 	def heatclean(self, stacks):
@@ -3047,6 +3108,7 @@ class Openstuck():
 		servers         = mgr.list()
 		snapshotservers = mgr.list()
 		volumeservers   = mgr.list()
+		attachedvolumes = mgr.list()
 		floatings       = mgr.list()
 		if self.verbose:
 			print "Testing Nova..."
@@ -3362,6 +3424,35 @@ class Openstuck():
 			self._addrows(verbose, output)
 			volumeservers = [ nova.servers.get(server_id) if server_id is not None else None for server_id in volumeservers ]
 
+		test    = 'Attach_Volume'
+		reftest = 'Create_Server'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Attach_Volume, args=(nova, server, attachedvolumes, errors, output, self.verbose, timeout, )) for server in servers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+		attachedvolumes = [ cinder.volumes.get(volume_id) if volume_id is not None else None for volume_id in attachedvolumes ]
+
+		test    = 'Detach_Volume'
+		reftest = 'Create_Server'
+		if test in tests:
+			output = mgr.list()
+                	concurrency, repeat = metrics(reftest)
+			starttime = time.time()
+			jobs = [ multiprocessing.Process(target=self.Detach_Volume, args=(nova, server, attachedvolumes, errors, output, self.verbose, timeout, )) for server in servers ]
+			self._process(jobs)
+			endtime = time.time()
+			runningtime = "%0.3f" % (endtime -starttime)
+			if verbose:
+				print "%s  %s seconds" % (test, runningtime)
+			self._report(category, test, concurrency, repeat, runningtime, errors)
+
 		test    = 'Delete_Server'
 		reftest = 'Create_Server'
 		if test in tests:
@@ -3376,7 +3467,7 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
-		return flavors, keypairs, servers, volumeservers, snapshotservers, floatings
+		return flavors, keypairs, servers, volumeservers, snapshotservers, attachedvolumes, floatings
 
 	def heattest(self):
 		category = 'heat'
@@ -3955,7 +4046,7 @@ if __name__ == "__main__":
 			o._novaafter()
 			o._clean()
 			sys.exit(1)
-		flavors, keypairs, servers, volumeservers, snapshotservers, floatings = o.novatest()
+		flavors, keypairs, servers, volumeservers, snapshotservers, attachedvolumes, floatings = o.novatest()
 	if testheat or testall:
 		#if o.embedded:
 		o._novabefore(externalnet=externalnet, image=True, volume=False, snapshot=False)
@@ -3976,7 +4067,7 @@ if __name__ == "__main__":
 	if testneutron or testall:
 		o.neutronclean(securitygroups, networks, subnets, routers)
 	if testnova or testall:
-		o.novaclean(flavors, keypairs, servers, volumeservers, snapshotservers, floatings)
+		o.novaclean(flavors, keypairs, servers, volumeservers, snapshotservers, attachedvolumes, floatings)
 	if testheat or testall:
 		o.heatclean(stacks)
 	if testceilometer or testceilometer:
