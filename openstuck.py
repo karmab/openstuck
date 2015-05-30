@@ -3438,6 +3438,7 @@ class Openstuck():
 			if verbose:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
+			self._addrows(verbose, output)
 		attachedvolumes = [ cinder.volumes.get(volume_id) if volume_id is not None else None for volume_id in attachedvolumes ]
 
 		test    = 'Detach_Volume'
@@ -3452,6 +3453,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime)
 			if verbose:
 				print "%s  %s seconds" % (test, runningtime)
+			self._addrows(verbose, output)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 
 		test    = 'Delete_Server'
