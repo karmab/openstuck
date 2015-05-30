@@ -3114,6 +3114,7 @@ class Openstuck():
 			print "Testing Nova..."
 		keystone = self.keystone
 		nova = novaclient.Client('2', **self.novacredentials)
+		cinder = cinderclient.Client(**self.novacredentials)
 		
 		test    = 'Create_Flavor'
 		reftest = test
