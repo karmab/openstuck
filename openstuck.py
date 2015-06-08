@@ -101,6 +101,8 @@ class Openstuck():
 				self.admin = False
 			if embedded and self.admin:
 				embeddedtenant = self.keystone.tenants.create(tenant_name=project, enabled=True)
+				if verbose:
+					print "Created tenant %s for nova/heat testing" % project
 				self.keystone.roles.add_user_role(user, adminrole, embeddedtenant)
 				self.auth_tenant_name = project
 				self.auth_tenant_id   = embeddedtenant.id
@@ -210,13 +212,19 @@ class Openstuck():
 		if not self.embeddedobjects.has_key('flavor'):
 			flavor1 = nova.flavors.create(name=novaflavor1,ram=self.ram,vcpus=self.cpus,disk=self.disk)
 			flavor2 = nova.flavors.create(name=novaflavor2,ram=self.ram*2,vcpus=self.cpus*2,disk=self.disk)
+			if self.verbose:
+				print "Created flavors %s and %s for nova/heat testing" % (novaflavor1, novaflavor2)
 			self.embeddedobjects['flavor']=[flavor1.id, flavor2.id]
 		if not self.embeddedobjects.has_key('keypair'):
 			keypair = nova.keypairs.create(novakey)
+			if self.verbose:
+				print "Created keypair %s for nova/heat testing" % novakey
 			self.private_key = keypair.private_key
 			self.embeddedobjects['keypair'] = keypair
 		if not self.embeddedobjects.has_key('image') and image:
 			image           = glance.images.create(name=novaimage, visibility='private', disk_format='qcow2',container_format='bare')
+			if self.verbose:
+				print "Created image %s for nova/heat testing" % novaimage
 			self.embeddedobjects['image'] = image.id
 			with open(imagepath,'rb') as data:
 				if self.verbose:
@@ -225,16 +233,22 @@ class Openstuck():
 			o._available(glance.images, image.id, timeout,status='active')
 			if not self.embeddedobjects.has_key('volume') and volume:
 				volume = cinder.volumes.create(name=novavolume,size=self.imagesize, imageRef=image.id)
+				if self.verbose:
+					print "Created volume %s for nova/heat testing" % novavolume
 				self.embeddedobjects['volume'] = volume.id
 				o._available(cinder.volumes, volume.id, timeout,status='available')
 				if not self.embeddedobjects.has_key('snapshot') and snapshot:
 					snapshot = cinder.volume_snapshots.create(volume_id=volume.id, name=novasnapshot)
+					if self.verbose:
+						print "Created snapshot %s for nova/heat testing" % novasnapshot
 					self.embeddedobjects['snapshot'] = snapshot.id
 					o._available(cinder.volume_snapshots, snapshot.id, timeout,status='available')
 					
 		if not self.embeddedobjects.has_key('network'):
 			network         = {'name': novanet, 'admin_state_up': True, 'tenant_id': tenantid}
 			network         = neutron.create_network({'network':network})
+			if self.verbose:
+				print "Created network %s for nova/heat testing" % novanet
 			networkid       = network['network']['id']
 			self.embeddedobjects['network'] = networkid
 		else:
@@ -242,6 +256,8 @@ class Openstuck():
 		if not self.embeddedobjects.has_key('subnet'):
 			subnet          = {'name':novasubnet, 'network_id':networkid,'ip_version':4,"cidr":'10.0.0.0/24', 'tenant_id': tenantid}
 			subnet          = neutron.create_subnet({'subnet':subnet})
+			if self.verbose:
+				print "Created subnet %s for nova/heat testing" % novasubnet
 			subnetid        = subnet['subnet']['id']
 			self.embeddedobjects['subnet'] = subnetid
 		if not self.embeddedobjects.has_key('router'):
@@ -255,6 +271,8 @@ class Openstuck():
 			routerid  = router['router']['id']
 			self.embeddedobjects['router'] = router['router']
 			neutron.add_interface_router(routerid,{'subnet_id':subnetid } )
+			if self.verbose:
+				print "Created router %s for nova/heat testing" % novarouter
 		if self.embedded:
 			securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'] == 'default' and s['tenant_id'] == tenantid]
 			if securitygroups:
@@ -263,6 +281,8 @@ class Openstuck():
 				self.embeddedobjects['securitygroup'] = securitygroupid
         			sshrule = {'security_group_rule': {'direction': 'ingress','security_group_id': securitygroupid, 'port_range_min': '22' ,'port_range_max': '22','protocol': 'tcp','remote_group_id': None,'remote_ip_prefix': '0.0.0.0/0'}}
         			neutron.create_security_group_rule(sshrule)
+				if self.verbose:
+					print "Created security group rule for nova/heat testing"
 		return 
 	def _novaafter(self):
 		tenantid          = self.auth_tenant_id
