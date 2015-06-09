@@ -79,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=True, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=0, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -101,7 +101,7 @@ class Openstuck():
 				self.admin = False
 			if embedded and self.admin:
 				embeddedtenant = self.keystone.tenants.create(tenant_name=project, enabled=True)
-				if verbose:
+				if verbose >0:
 					print "Created tenant %s for nova/heat testing" % project
 				self.keystone.roles.add_user_role(user, adminrole, embeddedtenant)
 				self.auth_tenant_name = project
@@ -212,34 +212,34 @@ class Openstuck():
 		if not self.embeddedobjects.has_key('flavor'):
 			flavor1 = nova.flavors.create(name=novaflavor1,ram=self.ram,vcpus=self.cpus,disk=self.disk)
 			flavor2 = nova.flavors.create(name=novaflavor2,ram=self.ram*2,vcpus=self.cpus*2,disk=self.disk)
-			if self.verbose:
+			if self.verbose >0:
 				print "Created flavors %s and %s for nova/heat testing" % (novaflavor1, novaflavor2)
 			self.embeddedobjects['flavor']=[flavor1.id, flavor2.id]
 		if not self.embeddedobjects.has_key('keypair'):
 			keypair = nova.keypairs.create(novakey)
-			if self.verbose:
+			if self.verbose >0:
 				print "Created keypair %s for nova/heat testing" % novakey
 			self.private_key = keypair.private_key
 			self.embeddedobjects['keypair'] = keypair
 		if not self.embeddedobjects.has_key('image') and image:
 			image           = glance.images.create(name=novaimage, visibility='private', disk_format='qcow2',container_format='bare')
-			if self.verbose:
+			if self.verbose >0:
 				print "Created image %s for nova/heat testing" % novaimage
 			self.embeddedobjects['image'] = image.id
 			with open(imagepath,'rb') as data:
-				if self.verbose:
+				if self.verbose >0:
 					print 'Uploading image prior to testing'
 				glance.images.upload(image.id, data)
 			o._available(glance.images, image.id, timeout,status='active')
 			if not self.embeddedobjects.has_key('volume') and volume:
 				volume = cinder.volumes.create(name=novavolume,size=self.imagesize, imageRef=image.id)
-				if self.verbose:
+				if self.verbose >0:
 					print "Created volume %s for nova/heat testing" % novavolume
 				self.embeddedobjects['volume'] = volume.id
 				o._available(cinder.volumes, volume.id, timeout,status='available')
 				if not self.embeddedobjects.has_key('snapshot') and snapshot:
 					snapshot = cinder.volume_snapshots.create(volume_id=volume.id, name=novasnapshot)
-					if self.verbose:
+					if self.verbose >0:
 						print "Created snapshot %s for nova/heat testing" % novasnapshot
 					self.embeddedobjects['snapshot'] = snapshot.id
 					o._available(cinder.volume_snapshots, snapshot.id, timeout,status='available')
@@ -247,7 +247,7 @@ class Openstuck():
 		if not self.embeddedobjects.has_key('network'):
 			network         = {'name': novanet, 'admin_state_up': True, 'tenant_id': tenantid}
 			network         = neutron.create_network({'network':network})
-			if self.verbose:
+			if self.verbose >0:
 				print "Created network %s for nova/heat testing" % novanet
 			networkid       = network['network']['id']
 			self.embeddedobjects['network'] = networkid
@@ -256,7 +256,7 @@ class Openstuck():
 		if not self.embeddedobjects.has_key('subnet'):
 			subnet          = {'name':novasubnet, 'network_id':networkid,'ip_version':4,"cidr":'10.0.0.0/24', 'tenant_id': tenantid}
 			subnet          = neutron.create_subnet({'subnet':subnet})
-			if self.verbose:
+			if self.verbose >0:
 				print "Created subnet %s for nova/heat testing" % novasubnet
 			subnetid        = subnet['subnet']['id']
 			self.embeddedobjects['subnet'] = subnetid
@@ -271,7 +271,7 @@ class Openstuck():
 			routerid  = router['router']['id']
 			self.embeddedobjects['router'] = router['router']
 			neutron.add_interface_router(routerid,{'subnet_id':subnetid } )
-			if self.verbose:
+			if self.verbose >0:
 				print "Created router %s for nova/heat testing" % novarouter
 		if self.embedded:
 			securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'] == 'default' and s['tenant_id'] == tenantid]
@@ -281,7 +281,7 @@ class Openstuck():
 				self.embeddedobjects['securitygroup'] = securitygroupid
         			sshrule = {'security_group_rule': {'direction': 'ingress','security_group_id': securitygroupid, 'port_range_min': '22' ,'port_range_max': '22','protocol': 'tcp','remote_group_id': None,'remote_ip_prefix': '0.0.0.0/0'}}
         			neutron.create_security_group_rule(sshrule)
-				if self.verbose:
+				if self.verbose >0:
 					print "Created security group rule for nova/heat testing"
 		return 
 	def _novaafter(self):
@@ -323,14 +323,6 @@ class Openstuck():
         			portid = port['id']
         			neutron.delete_port(portid)			
 			neutron.delete_subnet(subnetid)
-			#deleted = False
-			#while not deleted:
-			#	try:
-			#		neutron.delete_subnet(subnetid)
-			#		deleted = True
-			#	except Exception as e:
-			#		print e
-			#		continue
 		if self.embeddedobjects.has_key('network'):
 			networkid = self.embeddedobjects['network']
 			neutron.delete_network(networkid)
@@ -362,7 +354,7 @@ class Openstuck():
 		for j in jobs:
 			j.join()
 	def _addrows(self, verbose, rows):
-		if not verbose or not rows:
+		if verbose ==0 or not rows:
 			return
 		for row in rows:
 			self.output.add_row(row)
@@ -385,6 +377,9 @@ class Openstuck():
 				else:
 					raise Exception('Error')
 			time.sleep(0.2)
+			if self.verbose > 1:
+				name = manager.get(objectid).name
+				print "Waiting for status %s on %s and object %s" % (status, manager.__class__.__name__, name)
 			newstatus = manager.get(objectid).status
 		return {'success':True}
 	def _searchlog(self, server,search, timeout):
@@ -465,7 +460,7 @@ class Openstuck():
 		stdin, stdout, stderr   = ssh.exec_command(startcmd)
 		return success
 
-	def Add_FlavorAccess(self, nova, flavor, errors=None, output=None, verbose=False, timeout=20):
+	def Add_FlavorAccess(self, nova, flavor, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			tenant_id = nova.tenant_id
@@ -473,19 +468,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Add_FlavorAccess')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Add_FlavorAccess: %s %s seconds %s" % (flavor, runningtime, results )
 			output.append(['nova', 'Add_FlavorAccess', flavor, flavor, runningtime, results,])
 
-	def Add_FloatingIP(self, nova, server, floatings, errors=None, output=None, verbose=False, timeout=20):
+	def Add_FloatingIP(self, nova, server, floatings, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if server is None:
 			errors.append('Add_FloatingIP')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Add_FloatingIP: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Add_FloatingIP', 'N/A', 'N/A', '0', results,])
 			return
@@ -507,19 +502,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Add_FloatingIP')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Add_FloatingIP: %s %s seconds %s" % (servername, runningtime, results)
 			output.append(['nova', 'Add_FloatingIP', servername, servername, runningtime, results,])
 
-	def Add_Role(self, keystone, user, role, tenant, errors=None, output=None, verbose=False, timeout=20):
+	def Add_Role(self, keystone, user, role, tenant, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if tenant is None or user is None:
 			errors.append('Add_Role')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Add_Role: %s to %s 0 seconds" % ('N/A', 'N/A')
 				output.append(['keystone', 'Add_Role', 'N/A', 'N/A', '0', results,])
 			return
@@ -528,20 +523,20 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Add_Role')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Add_Role: %s to %s %s seconds %s" % (role.name, user.name, runningtime, results)
 			output.append(['keystone', 'Add_Role', role.name, role.name, runningtime, results,])
 
-	def Attach_Volume(self, nova, server, attachedvolumes, errors=None, output=None, verbose=False, timeout=20):
+	def Attach_Volume(self, nova, server, attachedvolumes, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		cinder = cinderclient.Client(**self.novacredentials)
 		if server is None:
 			errors.append('Attach_Volume')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Attach_Volume: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Attach_Volume', 'N/A', 'N/A', '0', results,])
 			return
@@ -554,18 +549,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Attach_Volume')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			output.append(['nova', 'Attach_Volume', server.name, server.name, runningtime, results,])
 
-	def Authenticate_User(self, user, password, auth_url, tenant=None, errors=None, output=None, verbose=False, timeout=20):
+	def Authenticate_User(self, user, password, auth_url, tenant=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if user is None or tenant is None:
 			errors.append('Authenticate_User')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Authenticate_User: %s in %s 0 seconds" % ('N/A', 'N/A')
 				output.append(['keystone', 'Authenticate_User', 'N/A', 'N/A', '0', results,])
 			return
@@ -575,19 +570,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Authenticate_User')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Authenticate_User: %s in %s %s seconds %s" % (user.name, tenant.name, runningtime, results)
 			output.append(['keystone', 'Authenticate_User', user.name, user.name, runningtime, results,])
 
-	def Check_Console(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+	def Check_Console(self, nova, server, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if server is None:
 			errors.append('Check_Console')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Check_Console: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Check_Console', 'N/A', 'N/A', '0', results,])
 			return
@@ -597,19 +592,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Check_Console')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Check_Console: %s %s seconds %s" % (servername, runningtime, results)
 			output.append(['nova', 'Check_Console', servername, servername, runningtime, results,])
 
-	def Check_Novnc(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+	def Check_Novnc(self, nova, server, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if server is None:
 			errors.append('Check_Novnc')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Check_Novnc: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Check_Novnc', 'N/A', 'N/A', '0', results,])
 			return
@@ -619,19 +614,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Check_Novnc')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Check_Novnc: %s %s seconds %s" % (servername, runningtime, results)
 			output.append(['nova', 'Check_Novnc', servername, servername, runningtime, results,])
 
-	def Check_Connectivity(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+	def Check_Connectivity(self, nova, server, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if server is None:
 			errors.append('Check_Connectivity')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Check_Connectivity: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Check_Connectivity', 'N/A', 'N/A', '0', results,])
 			return
@@ -644,19 +639,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Check_Connectivity')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Check_Connectivity: %s %s seconds %s" % (servername, runningtime, results)
 			output.append(['nova', 'Check_Connectivity', servername, servername, runningtime, results,])
 
-	def Check_SSH(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+	def Check_SSH(self, nova, server, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if server is None:
 			errors.append('Check_SSH')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Check_SSH: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Check_SSH', 'N/A', 'N/A', '0', results,])
 			return
@@ -675,14 +670,14 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Check_SSH')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Check_SSH: %s %s seconds %s" % (servername, runningtime, results)
 			output.append(['nova', 'Check_SSH', servername, servername, runningtime, results,])
 
-	def Create_Alarm(self, ceilometer, alarm, alarms=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Alarm(self, ceilometer, alarm, alarms=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			newalarm = ceilometer.alarms.create(name=alarm, threshold=100, meter_name=alarm)
@@ -690,20 +685,20 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Alarm')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			alarms.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Alarm: %s %s seconds %s" % (alarm, runningtime, results )
 			output.append(['ceilometer', 'Create_Alarm', alarm, alarm, runningtime, results,])
-	def Create_Backup(self, cinder, volume, backups, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Backup(self, cinder, volume, backups, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if volume is None:
 			errors.append('Create_Backup')
 			backups.append(None)
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Create_Backup: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'Create_Backup', 'N/A', 'N/A', '0', results,])
 			return
@@ -721,14 +716,14 @@ class Openstuck():
 			backups.append(None)
 		except Exception as error:
 			errors.append('Create_Backup')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			backups.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Backup: %s %s seconds %s" % (backup, runningtime, results )
 			output.append(['cinder', 'Create_Backup', backup, backup, runningtime, results,])	
-	def Create_Container(self, swift, container, containers=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Container(self, swift, container, containers=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			objdata = os.environ['OS_SWIFT_OBJECT_PATH']   if os.environ.has_key('OS_SWIFT_OBJECT_PATH')   else None
@@ -744,15 +739,15 @@ class Openstuck():
 			containers.append(container)
 		except Exception as error:
 			errors.append('Create_Container')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			containers.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Container: %s %s seconds %s" % (container, runningtime, results )
 			output.append(['swiftcontainer', 'Create_Container', container, container, runningtime, results,])	
 			
-	def Create_Flavor(self, nova, flavor, flavors=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Flavor(self, nova, flavor, flavors=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			newflavor = nova.flavors.create(name=flavor,ram=512,vcpus=1,disk=1)
@@ -760,22 +755,22 @@ class Openstuck():
 			flavors.append(newflavor.id)
 		except Exception as error:
 			errors.append('Create_Flavor')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			flavors.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Flavor: %s %s seconds %s" % (flavor, runningtime, results )
 			output.append(['nova', 'Create_Flavor', flavor, flavor, runningtime, results,])
 
-	def Create_Image(self, glance, image, imagepath, images=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Image(self, glance, image, imagepath, images=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			if imagepath is None:
 				raise Exception('Missing OS_GLANCE_IMAGE_PATH environment variable')
 			newimage = glance.images.create(name=image, visibility='private', disk_format='qcow2',container_format='bare')
 			with open(imagepath,'rb') as data:
-				if self.verbose:
+				if self.verbose >0:
 					print 'Uploading image'
 				glance.images.upload(newimage.id, data)
 			o._available(glance.images, newimage.id, timeout,status='active')
@@ -783,14 +778,14 @@ class Openstuck():
 			images.append(newimage.id)
 		except Exception as error:
 			errors.append('Create_Image')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			images.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Image: %s %s seconds %s" % (image, runningtime, results )
 			output.append(['glance', 'Create_Image', image, image, runningtime, results,])
-	def Create_KeyPair(self, nova, keypair, keypairs=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_KeyPair(self, nova, keypair, keypairs=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			newkeypair = nova.keypairs.create(keypair)
@@ -798,15 +793,15 @@ class Openstuck():
 			keypairs.append(newkeypair.id)
 		except Exception as error:
 			errors.append('Create_KeyPair')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			keypairs.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_KeyPair: %s %s seconds %s" % (keypair, runningtime, results )
 			output.append(['nova', 'Create_KeyPair', keypair, keypair, runningtime, results,])
 
-	def Create_Network(self, neutron, network, networks=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Network(self, neutron, network, networks=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			newnetwork = {'name': network, 'admin_state_up': True}
@@ -815,14 +810,14 @@ class Openstuck():
 			networks.append(newnetwork['network']['id'])
 		except Exception as error:
 			errors.append('Create_Network')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			networks.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Network: %s %s seconds %s" % (network, runningtime, results )
 			output.append(['neutron', 'Create_Network', network, network, runningtime, results,])
-	def Create_Role(self, keystone, name, roles=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Role(self, keystone, name, roles=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			role = keystone.roles.create(name=name)
@@ -830,19 +825,19 @@ class Openstuck():
 			roles.append(role.id)
 		except Exception as error:
 			errors.append('Create_Role')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			roles.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Create_Role: %s %s seconds %s" % (name, runningtime, results)
 			output.append(['keystone', 'Create_Role', name, name, runningtime, results,])
-	def Create_Router(self, neutron, router, subnet, externalnet, routers=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Router(self, neutron, router, subnet, externalnet, routers=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if subnet is None:
 			errors.append('Create_Router')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				output.append(['neutron', 'Create_Router', 'N/A', 'N/A', '0', results,])
 			return
 		subnetid  = subnet['id']
@@ -860,13 +855,13 @@ class Openstuck():
 			routers.append(routerid)
 		except Exception as error:
 			errors.append('Create_Router')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			routers.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Router: %s %s seconds %s" % (router, runningtime, results )
-	def Create_SecurityGroup(self, neutron, securitygroup, securitygroups=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_SecurityGroup(self, neutron, securitygroup, securitygroups=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			newsecuritygroup = {'name': securitygroup}
@@ -875,15 +870,15 @@ class Openstuck():
 			securitygroups.append(newsecuritygroup['security_group']['id'])
 		except Exception as error:
 			errors.append('Create_SecurityGroup')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			securitygroups.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_SecurityGroup: %s %s seconds %s" % (securitygroup, runningtime, results )
 			output.append(['neutron', 'Create_SecurityGroup', securitygroup, securitygroup, runningtime, results,])
 
-	def Create_Server(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Server(self, nova, server, servers=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			if not embedded:
@@ -910,15 +905,15 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Server')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			servers.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Server: %s %s seconds %s" % (server, runningtime, results )
 			output.append(['nova', 'Create_Server', server, server, runningtime, results,])
 
-	def Create_SnapshotServer(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_SnapshotServer(self, nova, server, servers=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		cinder = cinderclient.Client(**self.novacredentials)
 		try:
@@ -945,15 +940,15 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_SnapshotServer')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			servers.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_SnapshotServer: %s %s seconds %s" % (server, runningtime, results )
 			output.append(['nova', 'Create_SnapshotServer', server, server, runningtime, results,])
 
-	def Create_VolumeServer(self, nova, server, servers=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_VolumeServer(self, nova, server, servers=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		cinder = cinderclient.Client(**self.novacredentials)
 		try:
@@ -980,22 +975,22 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_VolumeServer')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			servers.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_VolumeServer: %s %s seconds %s" % (server, runningtime, results )
 			output.append(['nova', 'Create_VolumeServer', server, server, runningtime, results,])
 
 
-	def Create_Snapshot(self, cinder, volume, snapshots, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Snapshot(self, cinder, volume, snapshots, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if volume is None:
 			errors.append('Create_Snapshot')
 			snapshots.append(None)
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				output.append(['cinder', 'Create_Snapshot', 'N/A', 'N/A', '0', results,])
 			return
 		snapshot = "snapshot-%s" % volume.name
@@ -1012,15 +1007,15 @@ class Openstuck():
 			snapshots.append(None)
 		except Exception as error:
 			errors.append('Create_Snapshot')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			snapshots.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Snapshot: %s %s seconds %s" % (snapshot, runningtime, results )
 			output.append(['cinder', 'Create_Snapshot', snapshot, snapshot, runningtime, results,])	
 
-	def Create_Stack(self, heat, stack, stacks=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Stack(self, heat, stack, stacks=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			template  = os.environ['OS_HEAT_TEMPLATE']   if os.environ.has_key('OS_HEAT_TEMPLATE')   else None
@@ -1050,19 +1045,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Stack')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			stacks.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Stack: %s %s seconds %s" % (stack, runningtime, results )
 			output.append(['heat', 'Create_Stack', stack, stack, runningtime, results,])
-	def Create_Subnet(self, neutron, subnet, network, cidr='10.0.0.0/24', subnets=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Subnet(self, neutron, subnet, network, cidr='10.0.0.0/24', subnets=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if network is None:
 			errors.append('Create_Subnet')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				output.append(['neutron', 'Create_Subnet', 'N/A', 'N/A', '0', results,])
 			return
 		networkid  = network['id']
@@ -1073,14 +1068,14 @@ class Openstuck():
 			subnets.append(newsubnet['subnet']['id'])
 		except Exception as error:
 			errors.append('Create_Subnet')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			subnets.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Subnet: %s %s seconds %s" % (subnet, runningtime, results )
 			output.append(['neutron', 'Create_Subnet', subnet, subnet, runningtime, results,])
-	def Create_Tenant(self, keystone, name, description, tenants=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Tenant(self, keystone, name, description, tenants=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			tenant = keystone.tenants.create(tenant_name=name, description=description,enabled=True)
@@ -1088,18 +1083,18 @@ class Openstuck():
 			tenants.append(tenant.id)
 		except Exception as error:
 			errors.append('Create_Tenant')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			tenants.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Tenant:%s %s seconds %s" % (name, runningtime, results)
 			output.append(['keystone', 'Create_Tenant', name, name, runningtime, results,])
-	def Create_TypedVolume(self, cinder, volume, volumetype, volumes=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_TypedVolume(self, cinder, volume, volumetype, volumes=None, errors=None, output=None, verbose=0, timeout=20):
 		if volumetype is None:
 			results = 'Missing OS_CINDER_VOLUME_TYPE environment variable'
 			volumes.append(None)
-			if verbose:
+			if verbose >0:
 				print "Create_TypedVolume: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'Create_TypedVolume', 'N/A', 'N/A', '0', results,])
 			return
@@ -1111,20 +1106,20 @@ class Openstuck():
                         o._available(cinder.volumes, newvolume.id, timeout)
 		except Exception as error:
 			errors.append('Create_TypedVolume')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			volumes.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_TypedVolume: %s %s seconds %s" % (volume, runningtime, results )
 			output.append(['cinder', 'Create_TypedVolume', volume, volume, runningtime, results,])
-	def Create_User(self, keystone, name, password, email,tenant, users=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_User(self, keystone, name, password, email,tenant, users=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if tenant is None:
 			errors.append('Create_User')
 			results = 'NotRun'
 			users.append(None)
-			if verbose:
+			if verbose >0:
 				print "Create_User: %s 0 seconds" % 'N/A'
 				output.append(['keystone', 'Create_User', 'N/A', 'N/A', '0', results,])
 			return
@@ -1134,14 +1129,14 @@ class Openstuck():
 			users.append(user.id)
 		except Exception as error:
 			errors.append('Create_User')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			users.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_User: %s %s seconds %s" % (name, runningtime, results)
 			output.append(['keystone', 'Create_User', name, name, runningtime, results,])
-	def Create_Volume(self, cinder, volume, volumes=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Volume(self, cinder, volume, volumes=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			newvolume = cinder.volumes.create(size=1, name=volume)
@@ -1150,20 +1145,20 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Create_Volume')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			volumes.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Volume: %s %s seconds %s" % (volume, runningtime, results )
 			output.append(['cinder', 'Create_Volume', volume, volume, runningtime, results,])			
 
-	def Create_Volume_From_Snapshot(self, cinder, snapshot, snapshotvolumes=None, errors=None, output=None, verbose=False, timeout=20):
+	def Create_Volume_From_Snapshot(self, cinder, snapshot, snapshotvolumes=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if snapshot is None:
 			errors.append('Create_Volume_From_Snapshot')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Create_Volume_From_Snapshot: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'Create_Volume_From_Snapshot', 'N/A', 'N/A', '0', results,])
 			return
@@ -1177,19 +1172,19 @@ class Openstuck():
                         o._available(cinder.volumes, newvolume.id, timeout)
 		except Exception as error:
 			errors.append('Create_Volume_From_Snapshot')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 			volumes.append(None)
-		if verbose:
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Volume_From_Snapshot: %s %s seconds %s" % (volumename, runningtime, results )
 			output.append(['cinder', 'Create_Volume_From_Snapshot', volumename, volumename, runningtime, results,])			
-	def Delete_Alarm(self, ceilometer, alarm, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Alarm(self, ceilometer, alarm, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if alarm is None:
 			errors.append('Delete_Alarm')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Alarm: %s 0 seconds" % 'N/A'
 				output.append(['ceilometer', 'Delete_Alarm', 'N/A', 'N/A', '0', results,])
 			return
@@ -1199,18 +1194,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Alarm')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Alarm: %s %s seconds %s" % (alarmname, runningtime, results)
 			output.append(['ceilometer', 'Delete_Alarm', alarmname, alarmname, runningtime, results,])
-	def Delete_Backup(self, cinder, backup, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Backup(self, cinder, backup, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if backup is None:
 			errors.append('Delete_Backup')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Backup: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'Delete_Backup', 'N/A', 'N/A', '0', results,])
 			return
@@ -1226,18 +1221,18 @@ class Openstuck():
 		except Exception as error:
 		        print error
 			errors.append('Delete_Backup')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Backup: %s %s seconds %s" % (backupname, runningtime, results)
-			output.append(['cinderbackup', 'Delete_Backup', backupname, backupname, runningtime, results,])		
-	def Delete_Container(self, swift, container, errors=None, output=None, verbose=False, timeout=20):
+			output.append(['cinder', 'Delete_Backup', backupname, backupname, runningtime, results,])		
+	def Delete_Container(self, swift, container, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if container is None:
 			errors.append('Delete_Container')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Container: %s 0 seconds" % 'N/A'
 				output.append(['swift', 'Delete_Container', 'N/A', 'N/A', '0', results,])
 			return
@@ -1251,19 +1246,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Container')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Container: %s %s seconds %s" % (container, runningtime, results)
 			output.append(['swift', 'Delete_Container', container, container, runningtime, results,])
 			
-	def Delete_Flavor(self, nova, flavor, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Flavor(self, nova, flavor, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if flavor is None:
 			errors.append('Delete_Flavor')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Flavor: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Delete_Flavor', 'N/A', 'N/A', '0', results,])
 			return
@@ -1273,19 +1268,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Flavor')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Flavor: %s %s seconds %s" % (flavorname, runningtime, results)
 			output.append(['nova', 'Delete_Flavor', flavorname, flavorname, runningtime, results,])			
 
-	def Delete_Image(self, glance, image, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Image(self, glance, image, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if image is None:
 			errors.append('Delete_Image')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Image: %s 0 seconds" % 'N/A'
 				output.append(['glance', 'Delete_Image', 'N/A', 'N/A', '0', results,])
 			return
@@ -1295,19 +1290,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Image')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Image: %s %s seconds %s" % (imagename, runningtime, results)
 			output.append(['glance', 'Delete_Image', imagename, imagename, runningtime, results,])
 
-	def Delete_KeyPair(self, nova, keypair, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_KeyPair(self, nova, keypair, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if keypair is None:
 			errors.append('Delete_KeyPair')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_KeyPair: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Delete_KeyPair', 'N/A', 'N/A', '0', results,])
 			return
@@ -1317,19 +1312,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_KeyPair')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_KeyPair: %s %s seconds %s" % (keypairname, runningtime, results)
 			output.append(['nova', 'Delete_KeyPair', keypairname, keypairname, runningtime, results,])			
 
-	def Delete_Network(self, neutron, network, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Network(self, neutron, network, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if network is None:
 			errors.append('Delete_Network')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Network: %s 0 seconds" % 'N/A'
 				output.append(['neutron', 'Delete_Network', 'N/A', 'N/A', '0', results,])
 			return
@@ -1340,18 +1335,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Network')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Network: %s %s seconds %s" % (networkname, runningtime, results)
 
-	def Delete_SecurityGroup(self, neutron, securitygroup, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_SecurityGroup(self, neutron, securitygroup, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if securitygroup is None:
 			errors.append('Delete_SecurityGroup')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_SecurityGroup: %s 0 seconds" % 'N/A'
 				output.append(['neutron', 'Delete_SecurityGroup', 'N/A', 'N/A', '0', results,])
 			return
@@ -1362,18 +1357,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_SecurityGroup')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_SecurityGroup: %s %s seconds %s" % (securitygroupname, runningtime, results)
 			output.append(['neutron', 'Delete_SecurityGroup', securitygroupname, securitygroupname, runningtime, results,])
-	def Delete_Role(self, keystone, role, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Role(self, keystone, role, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if role is None:
 			results = 'NotRun'
 			errors.append('Delete_Role')
-			if verbose:
+			if verbose >0:
 				print "Delete_Role: %s 0 seconds" % 'N/A'
 				output.append(['keystone', 'Delete_Role', 'N/A', 'N/A', '0', results,])
 			return
@@ -1383,18 +1378,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Role')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Role: %s %s seconds %s" % (rolename, runningtime, results)
 			output.append(['keystone', 'Delete_Role', rolename, rolename, runningtime, results,])
-	def Delete_Router(self, neutron, router, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Router(self, neutron, router, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if router is None:
 			errors.append('Delete_Router')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Router: %s 0 seconds" % 'N/A'
 				output.append(['neutron', 'Delete_Router', 'N/A', 'N/A', '0', results,])
 			return
@@ -1411,18 +1406,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Router')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Router: %s %s seconds %s" % (routername, runningtime, results)
 			output.append(['neutron', 'Delete_Router', routername, routername, runningtime, results,])
-	def Delete_Server(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Server(self, nova, server, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if server is None:
 			errors.append('Delete_Server')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Server: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Delete_Server', 'N/A', 'N/A', '0', results,])
 			return
@@ -1436,18 +1431,18 @@ class Openstuck():
 				errors.append('Delete_Server')
 		except Exception as error:
 			errors.append('Delete_Server')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Server: %s %s seconds %s" % (servername, runningtime, results)
 			output.append(['nova', 'Delete_Server', servername, servername, runningtime, results,])
-	def Delete_Snapshot(self, cinder, snapshot, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Snapshot(self, cinder, snapshot, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if snapshot is None:
 			errors.append('Delete_Snapshot')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Snapshot: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'Delete_Snapshot', 'N/A', 'N/A', '0', results,])
 			return
@@ -1462,19 +1457,19 @@ class Openstuck():
 				errors.append('Delete_Snapshot')
 		except Exception as error:
 			errors.append('Delete_Snapshot')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Snapshot: %s %s seconds %s" % (snapshotname, runningtime, results)
 			output.append(['cinder', 'Delete_Snapshot', snapshotname, snapshotname, runningtime, results,])
 			
-	def Delete_Stack(self, heat, stack, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Stack(self, heat, stack, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if stack is None:
 			errors.append('Delete_Stack')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Stack: %s 0 seconds" % 'N/A'
 				output.append(['heat', 'Delete_Stack', 'N/A', 'N/A', '0', results,])
 			return
@@ -1489,19 +1484,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Stack')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Stack: %s %s seconds %s" % (stackname, runningtime, results)
 			output.append(['heat', 'Delete_Stack', stackname, stackname, runningtime, results,])
 
-	def Delete_Subnet(self, neutron, subnet, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Subnet(self, neutron, subnet, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if subnet is None:
 			errors.append('Delete_Subnet')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Subnet: %s 0 seconds" % 'N/A'
 				output.append(['neutron', 'Delete_Subnet', 'N/A', 'N/A', '0', results,])
 			return
@@ -1512,18 +1507,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Subnet')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Subnet: %s %s seconds %s" % (subnetname, runningtime, results)
 
-	def Delete_Tenant(self, keystone, tenant, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Tenant(self, keystone, tenant, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if tenant is None:
 			errors.append('Delete_Tenant')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Tenant: %s 0 seconds" % 'N/A'
 				output.append(['keystone', 'Delete_Tenant', 'N/A', 'N/A', '0', results,])
 			return
@@ -1533,18 +1528,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_Tenant')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Delete_Tenant: %s %s seconds %s" % (tenantname, runningtime, results)
 			output.append(['keystone', 'Delete_Tenant', tenantname, tenantname, runningtime, results,])
-	def Delete_User(self, keystone, user, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_User(self, keystone, user, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if user is None:
 			results = 'NotRun'
 			errors.append('Delete_User')
-			if verbose:
+			if verbose >0:
 				print "Delete_User: %s 0 seconds" % 'N/A'
 				output.append(['keystone', 'Delete_User', 'N/A', 'N/A', '0', results,])
 			return
@@ -1554,18 +1549,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Delete_User')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Delete_User: %s %s seconds %s" % (username, runningtime, results)
 			output.append(['keystone', 'Delete_User', username, username, runningtime, results,])
-	def Delete_Volume(self, cinder, volume, errors=None, output=None, verbose=False, timeout=20):
+	def Delete_Volume(self, cinder, volume, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if volume is None:
 			errors.append('Delete_Volume')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Delete_Volume: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'Delete_Volume', 'N/A', 'N/A', '0', results,])
 			return
@@ -1580,20 +1575,20 @@ class Openstuck():
 				errors.append('Delete_Volume')
 		except Exception as error:
 			errors.append('Delete_Volume')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Delete_Volume: %s %s seconds %s" % (volumename, runningtime, results)
 			output.append(['cinder', 'Delete_Volume', volumename, volumename, runningtime, results,])
 
-	def Detach_Volume(self, nova, server, attachedvolumes, errors=None, output=None, verbose=False, timeout=20):
+	def Detach_Volume(self, nova, server, attachedvolumes, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		cinder = cinderclient.Client(**self.novacredentials)
 		if server is None:
 			errors.append('Detach_Volume')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Detach_Volume: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Detach_Volume', 'N/A', 'N/A', '0', results,])
 			return
@@ -1607,19 +1602,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Detach_Volume')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Detach_Volume: %s %s seconds %s" % (server.name, runningtime, results)
 			output.append(['nova', 'Detach_Volume', server.name, server.name, runningtime, results,])
 
-	def Grow_Server(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+	def Grow_Server(self, nova, server, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if server is None:
 			errors.append('Grow_Server')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Grow_Server: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Grow_Server', 'N/A', 'N/A', '0', results,])
 			return
@@ -1630,18 +1625,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Grow_Server')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			output.append(['nova', 'Grow_Server', server.name, server.name, runningtime, results,])
 
-	def Grow_Volume(self, cinder, volume, errors=None, output=None, verbose=False, timeout=20):
+	def Grow_Volume(self, cinder, volume, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if volume is None:
 			results = 'NotRun'
 			errors.append('Grow_Volume')
-			if verbose:
+			if verbose >0:
 				print "Grow_Volume: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'Grow_Volume', 'N/A', 'N/A', '0', results,])
 			return
@@ -1651,19 +1646,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Grow_Volume')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Grow_Volume: %s %s seconds %s" % (volume.name, runningtime, results)
 			output.append(['cinder', 'Grow_Volume', volume.name, volume.name, runningtime, results,])
 
-	def List_Alarm(self, ceilometer, alarm, errors=None, output=None, verbose=False, timeout=20):
+	def List_Alarm(self, ceilometer, alarm, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if alarm is None:
 			results = 'NotRun'
 			errors.append('List_Alarm')
-			if verbose:
+			if verbose >0:
 				print "List_Alarm: %s 0 seconds" % 'N/A'
 				output.append(['ceilometer', 'List_Alarm', 'N/A', 'N/A', '0', results,])
 			return
@@ -1672,39 +1667,39 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Alarm')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Alarm: %s %s seconds %s" % (alarm.name, runningtime, results)
 			output.append(['ceilometer', 'List_Alarm', alarm.name, alarm.name, runningtime, results,])
-	def List_Backup(self, cinder, backup, errors=None, output=None, verbose=False, timeout=20):
+	def List_Backup(self, cinder, backup, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if backup is None:
 			results = 'NotRun'
 			errors.append('List_Backup')
-			if verbose:
+			if verbose >0:
 				print "List_Backup: %s 0 seconds" % 'N/A'
-				output.append(['cinderbackup', 'List_Backup', 'N/A', 'N/A', '0', results,])
+				output.append(['cinder', 'List_Backup', 'N/A', 'N/A', '0', results,])
 			return
 		try:
 			cinder.backups.get(backup.id)
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Backup')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Backup: %s %s seconds %s" % (backup.name, runningtime, results)
-			output.append(['cinderbackup', 'List_Backup', backup.name, backup.name, runningtime, results,])	
+			output.append(['cinder', 'List_Backup', backup.name, backup.name, runningtime, results,])	
 			
-	def List_Flavor(self, nova, flavor, errors=None, output=None, verbose=False, timeout=20):
+	def List_Flavor(self, nova, flavor, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if flavor is None:
 			results = 'NotRun'
 			errors.append('List_Flavor')
-			if verbose:
+			if verbose >0:
 				print "List_Flavor: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'List_Flavor', 'N/A', 'N/A', '0', results,])
 			return
@@ -1713,19 +1708,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Flavor')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Flavor: %s %s seconds %s" % (flavor.name, runningtime, results)
 			output.append(['nova', 'List_Flavor', flavor.name, flavor.name, runningtime, results,])			
 			
-	def List_Container(self, swift, container, errors=None, output=None, verbose=False, timeout=20):
+	def List_Container(self, swift, container, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if container is None:
 			results = 'NotRun'
 			errors.append('List_Container')
-			if verbose:
+			if verbose >0:
 				print "List_Container: %s 0 seconds" % 'N/A'
 				output.append(['swift', 'List_Container', 'N/A', 'N/A', '0', results,])
 			return
@@ -1734,18 +1729,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Container')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Container: %s %s seconds %s" % (container, runningtime, results)
 			output.append(['swift', 'List_Container', container, container, runningtime, results,])						
-	def List_Image(self, glance, image, errors=None, output=None, verbose=False, timeout=20):
+	def List_Image(self, glance, image, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if image is None:
 			results = 'NotRun'
 			errors.append('List_Image')
-			if verbose:
+			if verbose >0:
 				print "List_Image: %s 0 seconds" % 'N/A'
 				output.append(['glance', 'List_Image', 'N/A', 'N/A', '0', results,])
 			return
@@ -1754,18 +1749,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Image')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Image: %s %s seconds %s" % (image.name, runningtime, results)
 			output.append(['glance', 'List_Image', image.name, image.name, runningtime, results,])
-	def List_KeyPair(self, nova, keypair, errors=None, output=None, verbose=False, timeout=20):
+	def List_KeyPair(self, nova, keypair, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if keypair is None:
 			results = 'NotRun'
 			errors.append('List_KeyPair')
-			if verbose:
+			if verbose >0:
 				print "List_KeyPair: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'List_KeyPair', 'N/A', 'N/A', '0', results,])
 			return
@@ -1774,32 +1769,32 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_KeyPair')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_KeyPair: %s %s seconds %s" % (keypair.name, runningtime, results)
 			output.append(['nova', 'List_KeyPair', keypair.name, keypair.name, runningtime, results,])
 
-	def List_Meter(self, ceilometer, errors=None, output=None, verbose=False, timeout=20):
+	def List_Meter(self, ceilometer, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			meters = ceilometer.meters.list()	
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Meter')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Meter: %s %s seconds %s" % ('meters', runningtime, results)
 			output.append(['ceilometer', 'List_Meter', 'meters', 'meters', runningtime, results,])
-	def List_Network(self, neutron, network, errors=None, output=None, verbose=False, timeout=20):
+	def List_Network(self, neutron, network, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if network is None:
 			results = 'NotRun'
 			errors.append('List_Network')
-			if verbose:
+			if verbose >0:
 				print "List_Network: %s 0 seconds" % 'N/A'
 				output.append(['neutron', 'List_Network', 'N/A', 'N/A', '0', results,])
 			return
@@ -1812,18 +1807,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Network')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Network: %s %s seconds %s" % (network_name, runningtime, results)
 			output.append(['neutron', 'List_Network', network_name, network_name, runningtime, results,])
-	def List_Role(self, keystone, role, errors=None, output=None, verbose=False, timeout=20):
+	def List_Role(self, keystone, role, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if role is None:
 			results = 'NotRun'
 			errors.append('List_Role')
-			if verbose:
+			if verbose >0:
 				print "List_Role: %s" % 'N/A'
 				output.append(['keystone', 'List_Role', 'N/A', 'N/A', '0', results,])
 			return
@@ -1832,18 +1827,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Role')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Role: %s %s seconds %s" % (role.name, runningtime, results)
 			output.append(['keystone', 'List_Role', role.name, role.name, runningtime, results,])
-	def List_Server(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+	def List_Server(self, nova, server, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if server is None:
 			results = 'NotRun'
 			errors.append('List_Server')
-			if verbose:
+			if verbose >0:
 				print "List_Server: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'List_Server', 'N/A', 'N/A', '0', results,])
 			return
@@ -1854,18 +1849,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Server')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Server: %s %s seconds %s" % (server_name, runningtime, results)
 			output.append(['nova', 'List_Server', server_name, server_name, runningtime, results,])
-	def List_Snapshot(self, cinder, snapshot, errors=None, output=None, verbose=False, timeout=20):
+	def List_Snapshot(self, cinder, snapshot, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if snapshot is None:
 			results = 'NotRun'
 			errors.append('List_Snapshot')
-			if verbose:
+			if verbose >0:
 				print "List_Snapshot: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'List_Snapshot', 'N/A', 'N/A', '0', results,])
 			return
@@ -1874,18 +1869,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Snapshot')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Snapshot: %s %s seconds %s" % (snapshot.name, runningtime, results)
 			output.append(['cinder', 'List_Snapshot', snapshot.name, snapshot.name, runningtime, results,])		
-	def List_Stack(self, heat, stack, errors=None, output=None, verbose=False, timeout=20):
+	def List_Stack(self, heat, stack, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if stack is None:
 			results = 'NotRun'
 			errors.append('List_Stack')
-			if verbose:
+			if verbose >0:
 				print "List_Stack: %s 0 seconds" % 'N/A'
 				output.append(['heat', 'List_Stack', 'N/A', 'N/A', '0', results,])
 			return	
@@ -1896,19 +1891,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Stack')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Stack: %s %s seconds %s" % (stackname, runningtime, results)
 			output.append(['heat', 'List_Stack', stackname, stackname, runningtime, results,])
 
-	def List_Subnet(self, neutron, subnet, errors=None, output=None, verbose=False, timeout=20):
+	def List_Subnet(self, neutron, subnet, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if subnet is None:
 			results = 'NotRun'
 			errors.append('List_Subnet')
-			if verbose:
+			if verbose >0:
 				print "List_Subnet: %s 0 seconds" % 'N/A'
 				output.append(['neutron', 'List_Subnet', 'N/A', 'N/A', '0', results,])
 			return
@@ -1921,18 +1916,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Subnet')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Subnet: %s %s seconds %s" % (subnet_name, runningtime, results)
 			output.append(['neutron', 'List_Subnet', subnet_name, subnet_name, runningtime, results,])
-	def List_Router(self, neutron, router, errors=None, output=None, verbose=False, timeout=20):
+	def List_Router(self, neutron, router, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if router is None:
 			results = 'NotRun'
 			errors.append('List_Router')
-			if verbose:
+			if verbose >0:
 				print "List_Router: %s 0 seconds" % 'N/A'
 				output.append(['neutron', 'List_Router', 'N/A', 'N/A', '0', results,])
 			return
@@ -1945,18 +1940,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Router')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Router: %s %s seconds %s" % (router_name, runningtime, results)
 			output.append(['neutron', 'List_Router', router_name, router_name, runningtime, results,])
-	def List_Volume(self, cinder, volume, errors=None, output=None, verbose=False, timeout=20):
+	def List_Volume(self, cinder, volume, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if volume is None:
 			results = 'NotRun'
 			errors.append('List_Volume')
-			if verbose:
+			if verbose >0:
 				print "List_Volume: %s 0 seconds" % 'N/A'
 				output.append(['cinder', 'List_Volume', 'N/A', 'N/A', '0', results,])
 			return
@@ -1965,8 +1960,8 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Volume')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Volume: %s %s seconds %s" % (volume.name, runningtime, results)
@@ -1974,12 +1969,12 @@ class Openstuck():
 
 
 
-	def Migrate_Server(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+	def Migrate_Server(self, nova, server, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if server is None:
 			errors.append('Migrate_Server')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Migrate_Server: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Migrate_Server', 'N/A', 'N/A', '0', results,])
 			return
@@ -1991,13 +1986,13 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Migrate_Server')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			output.append(['nova', 'Migrate_Server', server.name, server.name, runningtime, results,])
 
-	def Reach_VolumeQuota(self, cinder, errors=None, output=None, verbose=False, timeout=20):
+	def Reach_VolumeQuota(self, cinder, errors=None, output=None, verbose=0, timeout=20):
 		quotavolumes = []
 		errors = []
 		starttime = time.time()
@@ -2005,7 +2000,7 @@ class Openstuck():
 			maxvolumes = cinder.quotas.get(self.keystone.tenant_id).volumes
 			currentvolumes = len(cinder.volumes.list())
 			for  step in range(0,maxvolumes-currentvolumes+1):
-				newvolume = cinder.volumes.create(size=1, name='quotavolume')
+				newvolume = cinder.volumes.create(size=1, name="%s-quotavolume" % self.project)
                         	o._available(cinder.volumes, newvolume.id, timeout)
 				quotavolumes.append(newvolume)
 			results = 'QuotaNotRespected'
@@ -2014,20 +2009,20 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Reach_StorageQuota')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Reach_StorageQuota: %s seconds %s" % (runningtime, results )
 			output.append(['cinder', 'Reach_StorageQuota', 'volumequota', 'volumequota', runningtime, results,])
 		return quotavolumes
-	def Reach_StorageQuota(self, cinder, errors=None, output=None, verbose=False, timeout=20):
+	def Reach_StorageQuota(self, cinder, errors=None, output=None, verbose=0, timeout=20):
 		quotavolumes = []
 		errors = []
 		starttime = time.time()
 		try:
 			maxstorage = cinder.quotas.get(self.keystone.tenant_id).gigabytes
-			newvolume = cinder.volumes.create(size=maxstorage+1, name='quotastorage')
+			newvolume = cinder.volumes.create(size=maxstorage+1, name="%s-quotastorage" % self.project)
                         o._available(cinder.volumes, newvolume.id, timeout)
 			newvolume.delete()
 			results = 'QuotaNotRespected'
@@ -2036,13 +2031,13 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Reach_StorageQuota')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Reach_StorageQuota: %s seconds %s" % (runningtime, results )
 			output.append(['cinder', 'Reach_StorageQuota', 'storagequota', 'storagequota', runningtime, results,])
-	def Remove_FlavorAccess(self, nova, flavor, errors=None, output=None, verbose=False, timeout=20):
+	def Remove_FlavorAccess(self, nova, flavor, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
 			#THIS IS BUGGY
@@ -2051,28 +2046,21 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Remove_FlavorAccess')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Remove_FlavorAccess: %s %s seconds %s" % (flavor, runningtime, results )
 			output.append(['nova', 'Remove_FlavorAccess', flavor, flavor, runningtime, results,])
-	def Restore_Backup(self, cinder, backup, errors=None, output=None, verbose=False, timeout=20):
+	def Restore_Backup(self, cinder, backup, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if backup is None:
 			results = 'NotRun'
 			errors.append('Restore_Backup')
-			if verbose:
+			if verbose >0:
 				print "Restore_Backup: %s 0 seconds" % 'N/A'
-				output.append(['cinderbackup', 'Restore_Backup', 'N/A', 'N/A', '0', results,])
+				output.append(['cinder', 'Restore_Backup', 'N/A', 'N/A', '0', results,])
 			return
-		#if volume is None or backup is None:
-		#	errors.append('Create_Restore')
-		#	results = 'NotRun'
-		#	if verbose:
-		#		print "Create_Restore: %s 0 seconds" % 'N/A'
-		#		output.append(['cinder', 'Create_Restore', 'N/A', 'N/A', '0', results,])
-		#	return
 		try:
 			backup_id   = backup.id
 			backup_name = backup.name
@@ -2081,19 +2069,19 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Restore_Backup')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Restore_Backup: %s %s seconds %s" % (backup_name, runningtime, results )
 			output.append(['cinder', 'Restore_Backup', backup_name, backup_name, runningtime, results,])	
 
-	def Shrink_Server(self, nova, server, errors=None, output=None, verbose=False, timeout=20):
+	def Shrink_Server(self, nova, server, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if server is None:
 			errors.append('Shrink_Server')
 			results = 'NotRun'
-			if verbose:
+			if verbose >0:
 				print "Shrink_Server: %s 0 seconds" % 'N/A'
 				output.append(['nova', 'Shrink_Server', 'N/A', 'N/A', '0', results,])
 			return
@@ -2104,18 +2092,18 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('Shrink_Server')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			output.append(['nova', 'Shrink_Server', server.name, server.name, runningtime, results,])
 
-	def Update_Stack(self, heat, stack, errors=None, output=None, verbose=False, timeout=20):
+	def Update_Stack(self, heat, stack, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if stack is None:
 			results = 'NotRun'
 			errors.append('Update_Stack')
-			if verbose:
+			if verbose >0:
 				print "Update_Stack: %s 0 seconds" % 'N/A'
 				output.append(['heat', 'Update_Stack', 'N/A', 'N/A', '0', results,])
 			return	
@@ -2148,15 +2136,15 @@ class Openstuck():
 			results = 'OK'
 		except Exception as error:
 			errors.append('List_Stack')
-			results = error if len(str(error)) > 0 else str(type(error).__name__)
-		if verbose:
+			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
+		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "List_Stack: %s %s seconds %s" % (stackname, runningtime, results)
 
 	def _printreport(self):
 		return self.output
-	def listservices(self, verbose=True):
+	def listservices(self, verbose=1):
 		try:
 			keystone = self.keystone
 			output = PrettyTable(['Service', 'Type', 'Status'])
@@ -2164,7 +2152,7 @@ class Openstuck():
 			for service in sorted(keystone.services.list(), key = lambda s: s.name):
 				status = 'Available' if service.enabled else 'N/A'
 				output.add_row([service.name, service.type, status])
-			if verbose:
+			if verbose >0:
 				print output
 			return True
 		except:
@@ -2199,7 +2187,7 @@ class Openstuck():
 				os.popen(startcmd)
                                 return False
                         time.sleep(0.2)
-			running = self.listservices(verbose=False)
+			running = self.listservices(verbose=0)
                         if running:
                                 success = True
                                 break
@@ -2207,7 +2195,7 @@ class Openstuck():
                 return success
 
 	def keystoneclean(self, tenants, users, roles):
-		if self.verbose:
+		if self.verbose >0:
 			print "Cleaning Keystone..."
 		keystone = self.keystone
 		for tenant in tenants:
@@ -2235,7 +2223,7 @@ class Openstuck():
 				except:
 					continue
 	def glanceclean(self, images):
-		if self.verbose:
+		if self.verbose >0:
 			print "Cleaning Glance..."
 		keystone = self.keystone
                 endpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
@@ -2250,7 +2238,7 @@ class Openstuck():
 				except:
 					continue
 	def cinderclean(self, volumes, snapshotvolumes, backups, snapshots, quotavolumes):
-		if self.verbose:
+		if self.verbose >0:
 			print "Cleaning Cinder..."
 		keystone = self.keystone
 		cinder = cinderclient.Client(**self.novacredentials)
@@ -2292,11 +2280,11 @@ class Openstuck():
 			else:
 				try:
 					quotavolume.delete()
-				except Exception as e:
+				except:
 					continue
 
 	def cinderbackupclean(self, backups):
-		if self.verbose:
+		if self.verbose >0:
 			print "Cleaning CinderBackup backup..."
 		keystone = self.keystone
 		cinder = cinderclient.Client(**self.novacredentials)
@@ -2310,7 +2298,7 @@ class Openstuck():
 					continue
 
 	def neutronclean(self, securitygroups, networks, subnets, routers):
-		if self.verbose:
+		if self.verbose >0:
 			print "Cleaning Neutron..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
@@ -2356,7 +2344,7 @@ class Openstuck():
 				except:
 					continue
 	def novaclean(self, flavors, keypairs, servers, volumeservers, snapshotservers, attachedvolumes, floatings):
-		if self.verbose:
+		if self.verbose >0:
 			print "Cleaning Nova..."
 		nova     = novaclient.Client('2', **self.novacredentials)
 		for flavor in flavors:
@@ -2416,7 +2404,7 @@ class Openstuck():
 				except:
 					continue
 	def heatclean(self, stacks):
-		if self.verbose:
+		if self.verbose >0:
 			print "Cleaning Heat..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='orchestration',endpoint_type=self.endpoint)
@@ -2430,7 +2418,7 @@ class Openstuck():
 				except:
 					continue
 	def ceilometerclean(self, alarms):
-		if self.verbose:
+		if self.verbose >0:
 			print "Cleaning Ceilometer..."
 		os_username, os_password, os_tenant_name, os_auth_url = self.auth_username, self.auth_password, self.auth_tenant_name, self.auth_url
                 ceilometer = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url)
@@ -2443,7 +2431,7 @@ class Openstuck():
 				except:
 					continue
 	def swiftclean(self, containers):
-		if self.verbose:
+		if self.verbose >0:
 			print "Cleaning Swift..."
 		keystone      = self.keystone
                 preauthurl   = keystone.service_catalog.url_for(service_type='object-store',endpoint_type=self.endpoint)
@@ -2474,7 +2462,7 @@ class Openstuck():
 		users   = mgr.list()
 		roles   = mgr.list()
 		errors  = mgr.list()
-		if self.verbose:
+		if self.verbose >0:
 			print "Testing Keystone..."
 		keystone = self.keystone
 
@@ -2489,7 +2477,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime    = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2506,7 +2494,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2524,7 +2512,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2540,7 +2528,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2555,7 +2543,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2570,7 +2558,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2585,7 +2573,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2600,7 +2588,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2615,7 +2603,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2629,7 +2617,7 @@ class Openstuck():
 		mgr = multiprocessing.Manager()
 		errors  = mgr.list()
 		images = mgr.list()
-		if self.verbose:
+		if self.verbose >0:
 			print "Testing Glance..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
@@ -2647,7 +2635,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2663,7 +2651,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2678,7 +2666,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2696,7 +2684,7 @@ class Openstuck():
 		backups         = mgr.list()
 		snapshots       = mgr.list()
 		quotavolumes    = []
-		if self.verbose:
+		if self.verbose >0:
 			print "Testing Cinder..."
 		keystone = self.keystone
 		cinder = cinderclient.Client(**self.novacredentials)
@@ -2712,7 +2700,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2728,7 +2716,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2744,7 +2732,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2760,7 +2748,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2777,7 +2765,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2792,7 +2780,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2807,7 +2795,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2822,7 +2810,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2837,7 +2825,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2852,7 +2840,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2867,7 +2855,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2882,7 +2870,7 @@ class Openstuck():
                         self._process(jobs)
                         endtime = time.time()
                         runningtime = "%0.3f" % (endtime -starttime)
-                        if verbose:
+                        if verbose >0:
                                 print "%s  %s seconds" % (test, runningtime)
                         self._report(category, test, concurrency, repeat, runningtime, errors)
                         self._addrows(verbose, output)
@@ -2897,7 +2885,7 @@ class Openstuck():
                         self._process(jobs)
                         endtime = time.time()
                         runningtime = "%0.3f" % (endtime -starttime)
-                        if verbose:
+                        if verbose >0:
                                 print "%s  %s seconds" % (test, runningtime)
                         self._report(category, test, concurrency, repeat, runningtime, errors)
                         self._addrows(verbose, output)
@@ -2911,7 +2899,7 @@ class Openstuck():
 			quotavolumes = self.Reach_VolumeQuota(cinder)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors=[])
 			self._addrows(verbose, output)
@@ -2925,7 +2913,7 @@ class Openstuck():
 			self.Reach_StorageQuota(cinder)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors=[])
 			self._addrows(verbose, output)
@@ -2940,7 +2928,7 @@ class Openstuck():
 		networks       = mgr.list()
 		subnets        = mgr.list()
 		routers        = mgr.list()
-		if self.verbose:
+		if self.verbose >0:
 			print "Testing Neutron..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
@@ -2957,7 +2945,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2974,7 +2962,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -2990,7 +2978,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3006,7 +2994,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3022,7 +3010,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3037,7 +3025,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3053,7 +3041,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3068,7 +3056,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3083,7 +3071,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3098,7 +3086,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 
@@ -3112,7 +3100,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 
@@ -3130,7 +3118,7 @@ class Openstuck():
 		volumeservers   = mgr.list()
 		attachedvolumes = mgr.list()
 		floatings       = mgr.list()
-		if self.verbose:
+		if self.verbose >0:
 			print "Testing Nova..."
 		keystone = self.keystone
 		nova = novaclient.Client('2', **self.novacredentials)
@@ -3147,7 +3135,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3163,7 +3151,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3178,7 +3166,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3193,7 +3181,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3208,7 +3196,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3224,7 +3212,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3240,7 +3228,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3255,7 +3243,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3271,7 +3259,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3287,7 +3275,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3302,7 +3290,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3317,7 +3305,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3332,7 +3320,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3347,7 +3335,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3363,7 +3351,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3378,7 +3366,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3393,7 +3381,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 
@@ -3407,7 +3395,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 
@@ -3422,7 +3410,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3439,7 +3427,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3455,7 +3443,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3471,7 +3459,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._addrows(verbose, output)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
@@ -3486,7 +3474,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3499,7 +3487,7 @@ class Openstuck():
 		mgr = multiprocessing.Manager()
 		errors  = mgr.list()
 		stacks = mgr.list()
-		if self.verbose:
+		if self.verbose >0:
 			print "Testing Heat..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='orchestration',endpoint_type=self.endpoint)
@@ -3516,7 +3504,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3532,7 +3520,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3547,7 +3535,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3562,7 +3550,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3574,7 +3562,7 @@ class Openstuck():
 		mgr = multiprocessing.Manager()
 		errors  = mgr.list()
 		alarms = mgr.list()
-		if self.verbose:
+		if self.verbose >0:
 			print "Testing Ceilometer..."
 		os_username, os_password, os_tenant_name, os_auth_url = self.auth_username, self.auth_password, self.auth_tenant_name, self.auth_url
 		ceilometer = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url)
@@ -3590,7 +3578,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3606,7 +3594,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3622,7 +3610,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3637,7 +3625,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3649,7 +3637,7 @@ class Openstuck():
 		mgr = multiprocessing.Manager()
 		errors  = mgr.list()
 		containers = mgr.list()
-		if self.verbose:
+		if self.verbose >0:
 			print "Testing Swift..."
 		keystone     = self.keystone
 		preauthurl   = keystone.service_catalog.url_for(service_type='object-store',endpoint_type=self.endpoint)
@@ -3670,7 +3658,7 @@ class Openstuck():
 				self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3685,7 +3673,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3700,7 +3688,7 @@ class Openstuck():
 			self._process(jobs)
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, concurrency, repeat, runningtime, errors)
 			self._addrows(verbose, output)
@@ -3711,7 +3699,7 @@ class Openstuck():
 		timeout  = int(os.environ["OS_%s_TIMEOUT" % category.upper()]) if os.environ.has_key("OS_%s_TIMEOUT" % category.upper()) else self.timeout
 		errors   = []
 		tests = self.hatests
-		if self.verbose:
+		if self.verbose >0:
 			print "Testing HA..."
 		privatekey = None
 
@@ -3719,7 +3707,7 @@ class Openstuck():
 		reftest = test
 		if test in tests:
 			starttime = time.time()
-			if self.verbose:
+			if self.verbose >0:
 				print "Running Fence_Controller"
 			for index, server in enumerate(self.hafenceservers):
 				user     = self.hafenceusers[index]
@@ -3731,7 +3719,7 @@ class Openstuck():
 				errors = [] if success else [test]
 				endtime = time.time()
 				runningtime = "%0.3f" % (endtime -starttime)
-				if verbose:
+				if verbose >0:
 					print "%s  %s seconds" % (test, runningtime)
 				self._report(category, "%s on %s" % (test,name) , '1', '1', runningtime, errors)
 				#self._addrows(verbose, output)
@@ -3743,13 +3731,13 @@ class Openstuck():
 		service = 'mysqld'
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Mysql"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3758,13 +3746,13 @@ class Openstuck():
 		service = self.haamqp
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Amqp"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3773,13 +3761,13 @@ class Openstuck():
 		service = 'mongod'
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Mongodb"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3788,13 +3776,13 @@ class Openstuck():
 		service   = 'openstack-keystone'
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Keystone"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3803,13 +3791,13 @@ class Openstuck():
 		service   = 'openstack-glance-api'
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Glance"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3818,13 +3806,13 @@ class Openstuck():
 		service   = 'openstack-cinder-api'
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Cinder"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3833,13 +3821,13 @@ class Openstuck():
 		service   = 'neutron-server'
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Neutron"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3848,13 +3836,13 @@ class Openstuck():
 		service   = 'openstack-nova-api'
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Nova"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3863,13 +3851,13 @@ class Openstuck():
 		service   = 'openstack-heat-api'
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Heat"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3879,13 +3867,13 @@ class Openstuck():
 		service   = 'openstack-ceilometer-api'
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Ceilometer"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3895,13 +3883,13 @@ class Openstuck():
 		service   = 'openstack-swift-proxy'
 		if test in tests:
 			starttime = time.time()
-			if verbose:
+			if verbose >0:
 				print "Running Stop_Swift"
 			success = o._testservice(self.haserver, service, username=self.hauser, password=self.hapassword, privatekey=self.haprivatekey, timeout=timeout)
 			errors = [] if success else [test]
 			endtime = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			if verbose:
+			if verbose >0:
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
@@ -3941,7 +3929,7 @@ if __name__ == "__main__":
 	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] or 80 otherwise')
 	parser.add_option('-w', '--fencewait', dest='hafencewait', default=0, type='int', help='Time to wait between fence steps. Defaults to env[OS_HA_FENCEWAIT] or 0 otherwise')
 	parser.add_option('-u', '--clouduser', dest='clouduser', default='root', type='string', help='User for Check_SSH test. Defaults to root')
-	parser.add_option('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Verbose mode. Defaults to False')
+	parser.add_option('-v', '--verbose', dest='verbose', action='count', default=0, help='Verbose mode. Defaults to False')
 	parser.add_option('-e', '--embedded', dest='embedded', default=False, action='store_true', help='Create a dedicated tenant to hold all tests. Defaults to True')
 	(options, args)  = parser.parse_args()
 	listservices     = options.listservices
@@ -4099,7 +4087,7 @@ if __name__ == "__main__":
 		o.swiftclean(containers)
 	#reporting
 	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testceilometer or testswift or testha or testall:
-		if verbose:
+		if verbose >0:
 			print "Testing Keystone..."
 			print "Final report:"
 		print o._printreport()
