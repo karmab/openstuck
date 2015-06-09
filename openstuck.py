@@ -2140,15 +2140,15 @@ class Openstuck():
                                 #       template['resources'][newkey]= template['resources'].pop(oldkey)
                                 #       del template['resources'][oldkey]
 
-			heat.stacks.update()
+			stack.update(template)
 			results = 'OK'
 		except Exception as error:
-			errors.append('List_Stack')
+			errors.append('Update_Stack')
 			results = str(error) if len(str(error)) > 0 else str(type(error).__name__)
 		if verbose >0:
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
-			print "List_Stack: %s %s seconds %s" % (stackname, runningtime, results)
+			print "Update_Stack: %s %s seconds %s" % (stackname, runningtime, results)
 
 	def _printreport(self):
 		return self.output
