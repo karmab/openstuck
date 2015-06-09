@@ -2115,6 +2115,7 @@ class Openstuck():
 				print "Update_Stack: %s 0 seconds" % 'N/A'
 				output.append(['heat', 'Update_Stack', 'N/A', 'N/A', '0', results,])
 			return	
+		print stack, stack.id, stack.name
 		stackid   = stack.id
 		stackname = stack.stack_name
 		try:
@@ -2141,6 +2142,7 @@ class Openstuck():
                                 #       del template['resources'][oldkey]
 
 			stack.update(template=template)
+			o._available(heat.stacks, stackid, timeout, status='COMPLETE')
 			results = 'OK'
 		except Exception as error:
 			errors.append('Update_Stack')
