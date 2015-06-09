@@ -1036,9 +1036,8 @@ class Openstuck():
 					image     = "%s-image" % self.project
 					network   = "%s-net" % self.project
 					flavor1   = "%s-flavor1" % self.project
-				stackinstance = "%sinstance" % stack
 				template={'heat_template_version': '2013-05-23', 'description': 'Testing Template', 'resources': 
-				 	{stackinstance: {'type': 'OS::Nova::Server', 'properties': {'image': image,
+				 	{stack: {'type': 'OS::Nova::Server', 'properties': {'image': image,
 				 	'flavor': flavor1, 'networks': [{'network': network }]}}}}
 				template = json.dumps(template)
 			else:
@@ -1047,7 +1046,6 @@ class Openstuck():
 				#	newkey = "%s%s" % (stack, oldkey)
 				#	template['resources'][newkey]= template['resources'].pop(oldkey)
 				#	del template['resources'][oldkey]
-			print template
 			newstack = heat.stacks.create(stack_name=stack, template=template)
 			stacks.append(newstack['stack']['id'])
 			o._available(heat.stacks, newstack['stack']['id'], timeout, status='COMPLETE')
@@ -2130,9 +2128,8 @@ class Openstuck():
                                         image     = "%s-image" % self.project
                                         network   = "%s-net" % self.project
                                         flavor2   = "%s-flavor2" % self.project
-                                stackinstance = "%sinstance" % stack
                                 template={'heat_template_version': '2013-05-23', 'description': 'Testing Template', 'resources':
-                                        {stackinstance: {'type': 'OS::Nova::Server', 'properties': {'image': image,
+                                        {stackname: {'type': 'OS::Nova::Server', 'properties': {'image': image,
                                         'flavor': flavor2, 'networks': [{'network': network }]}}}}
                                 template = json.dumps(template)
                         else:
@@ -2142,7 +2139,6 @@ class Openstuck():
                                 #       template['resources'][newkey]= template['resources'].pop(oldkey)
                                 #       del template['resources'][oldkey]
 
-			print template
 			stack.update(template=template)
 			o._available(heat.stacks, stackid, timeout, status='COMPLETE')
 			results = 'OK'
