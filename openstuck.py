@@ -1047,6 +1047,7 @@ class Openstuck():
 				#	newkey = "%s%s" % (stack, oldkey)
 				#	template['resources'][newkey]= template['resources'].pop(oldkey)
 				#	del template['resources'][oldkey]
+			print template
 			newstack = heat.stacks.create(stack_name=stack, template=template)
 			stacks.append(newstack['stack']['id'])
 			o._available(heat.stacks, newstack['stack']['id'], timeout, status='COMPLETE')
@@ -1060,6 +1061,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Stack: %s %s seconds %s" % (stack, runningtime, results )
 			output.append(['heat', 'Create_Stack', stack, stack, runningtime, results,])
+
 	def Create_Subnet(self, neutron, subnet, network, cidr='10.0.0.0/24', subnets=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		if network is None:
@@ -2115,7 +2117,6 @@ class Openstuck():
 				print "Update_Stack: %s 0 seconds" % 'N/A'
 				output.append(['heat', 'Update_Stack', 'N/A', 'N/A', '0', results,])
 			return	
-		print stack, stack.id, stack.name
 		stackid   = stack.id
 		stackname = stack.stack_name
 		try:
@@ -2141,6 +2142,7 @@ class Openstuck():
                                 #       template['resources'][newkey]= template['resources'].pop(oldkey)
                                 #       del template['resources'][oldkey]
 
+			print template
 			stack.update(template=template)
 			o._available(heat.stacks, stackid, timeout, status='COMPLETE')
 			results = 'OK'
@@ -2151,6 +2153,7 @@ class Openstuck():
 			endtime     = time.time()
 			runningtime = "%0.3f" % (endtime -starttime)
 			print "Update_Stack: %s %s seconds %s" % (stackname, runningtime, results)
+			output.append(['heat', 'Update_Stack', stackname, stackname, runningtime, results,])
 
 	def _printreport(self):
 		return self.output
