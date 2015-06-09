@@ -2140,7 +2140,7 @@ class Openstuck():
                                 #       template['resources'][newkey]= template['resources'].pop(oldkey)
                                 #       del template['resources'][oldkey]
 
-			stack.update(template)
+			stack.update(template=template)
 			results = 'OK'
 		except Exception as error:
 			errors.append('Update_Stack')
