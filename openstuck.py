@@ -381,7 +381,7 @@ class Openstuck():
 					raise Exception('Error')
 			time.sleep(0.2)
 			if self.verbose > 1:
-				if stack_name in dir(manager.get(objectid)):
+				if 'stack_name' in dir(manager.get(objectid)):
 					name = manager.get(objectid).stack_name
 				else:
 					name = manager.get(objectid).name
