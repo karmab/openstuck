@@ -381,7 +381,10 @@ class Openstuck():
 					raise Exception('Error')
 			time.sleep(0.2)
 			if self.verbose > 1:
-				name = manager.get(objectid).name
+				if stack_name in dir(manager.get(objectid)):
+					name = manager.get(objectid).stack_name
+				else:
+					name = manager.get(objectid).name
 				print "Waiting for status %s on %s and object %s" % (status, manager.__class__.__name__, name)
 			newstatus = manager.get(objectid).status
 		return {'success':True}
@@ -497,6 +500,8 @@ class Openstuck():
 					externalid  = externalnets[0]['id']
 					floating_ip = nova.floating_ips.create(externalid)
 					floatings.append(floating_ip.id)
+					if self.verbose > 1:
+						print "Add_FloatingIP: added %s" % floating_ip.ip
 				else:
 					raise Exception("External net %s not found" % self.externalnet)
 			else:
