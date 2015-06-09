@@ -374,6 +374,9 @@ class Openstuck():
 				if 'fault' in dir(manager.get(objectid)):
 					message = manager.get(objectid).fault['message']
 					raise Exception(message)
+				elif 'fail_reason' in dir(manager.get(objectid)):
+                                        message = manager.get(objectid).fail_reason
+                                        raise Exception(message)
 				else:
 					raise Exception('Error')
 			time.sleep(0.2)
