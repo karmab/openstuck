@@ -3933,7 +3933,8 @@ if __name__ == "__main__":
 	hagroup.add_option('-3', '--hapassword', dest='hapassword', type='string', help='Hapassword for ha tests. Defaults to env[OS_HA_PASSWORD]')
 	hagroup.add_option('-4', dest='haprivatekey', type='string', help='Ha privatekey file. Defaults env[OS_HA_PRIVATEKEY]')
 	parser.add_option_group(hagroup)
-	parser.add_option('-i', '--info', dest='info', default=False, action='store_true', help='Print current environment variables values')
+	parser.add_option('-e', '--env', dest='env', default=False, action='store_true', help='Print current environment variables values')
+	parser.add_option('-i', '--insecure', dest='insecure', default=False, action='store_true', help='Insecure mode')
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. Defaults to acme')
 	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] or 80 otherwise')
 	parser.add_option('-w', '--fencewait', dest='hafencewait', default=0, type='int', help='Time to wait between fence steps. Defaults to env[OS_HA_FENCEWAIT] or 0 otherwise')
@@ -3954,7 +3955,8 @@ if __name__ == "__main__":
 	testall          = options.testall
 	project          = options.project
 	verbose          = options.verbose
-	info             = options.info
+	env              = options.env
+	insecure         = options.insecure
 	clouduser        = options.clouduser
 	timeout          = options.timeout
 	ram              = options.ram
@@ -3967,8 +3969,10 @@ if __name__ == "__main__":
 	hapassword	 = options.hapassword
 	haprivatekey	 = options.haprivatekey
 	try:
-		keystonecredentials = _keystonecreds()
-		novacredentials     = _novacreds()
+		keystonecredentials             = _keystonecreds()
+		keystonecredentials['insecure'] = insecure
+		novacredentials                 = _novacreds()
+		novacredentials['insecure']     = insecure
 		endpoint            = os.environ['OS_ENDPOINT_TYPE']                 if os.environ.has_key('OS_ENDPOINT_TYPE')       else 'publicURL'
 		keystonetests       = os.environ['OS_KEYSTONE_TESTS'].split(',')     if os.environ.has_key('OS_KEYSTONE_TESTS')      else keystonedefaulttests
 		glancetests         = os.environ['OS_GLANCE_TESTS'].split(',')       if os.environ.has_key('OS_GLANCE_TESTS')        else glancedefaulttests
@@ -4003,7 +4007,7 @@ if __name__ == "__main__":
 		print "Missing environment variables. source your openrc file first"
 		print e
 	    	os._exit(1)
-	if info:
+	if env:
 		categories = ['OS_KEYSTONE_TESTS', 'OS_GLANCE_TESTS', 'OS_CINDER_TESTS', 'OS_NEUTRON_TESTS', 'OS_NOVA_TESTS', 'OS_HEAT_TESTS', 'OS_CEILOMETER_TESTS', 'OS_SWIFT_TESTS','OS_HA_TESTS']
 		for key in sorted(os.environ):
 			if key in ['OS_TENANT_NAME', 'OS_USERNAME', 'OS_PASSWORD', 'OS_AUTH_URL', 'OS_REGION_NAME', 'OS_USERNAME'] or key in categories:
