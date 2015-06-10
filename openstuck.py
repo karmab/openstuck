@@ -3933,7 +3933,7 @@ if __name__ == "__main__":
 	hagroup.add_option('-3', '--hapassword', dest='hapassword', type='string', help='Hapassword for ha tests. Defaults to env[OS_HA_PASSWORD]')
 	hagroup.add_option('-4', dest='haprivatekey', type='string', help='Ha privatekey file. Defaults env[OS_HA_PRIVATEKEY]')
 	parser.add_option_group(hagroup)
-	parser.add_option('-e', '--env', dest='env', default=False, action='store_true', help='Print current environment variables values')
+	parser.add_option('--env', dest='env', default=False, action='store_true', help='Print current environment variables values')
 	parser.add_option('-i', '--insecure', dest='insecure', default=False, action='store_true', help='Insecure mode')
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. Defaults to acme')
 	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] or 80 otherwise')
