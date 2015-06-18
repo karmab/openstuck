@@ -79,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', insecure=True, keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=0, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', insecure=True, cacert=cacert, keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=0, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -114,6 +114,7 @@ class Openstuck():
 			print "Got the following issue: %s" % str(e) 
 			os._exit(1)
 		self.insecure          = insecure
+		self.cacert            = cacert
 		self.keystonetests     = keystonetests 
 		self.glancetests       = glancetests 
 		self.cindertests       = cindertests
@@ -192,12 +193,12 @@ class Openstuck():
 		keystone          = self.keystone
 		nova              = novaclient.Client('2', **self.novacredentials)
                 glanceendpoint    = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-                glance            = glanceclient.Client(glanceendpoint, token=keystone.auth_token, insecure=self.insecure)
+                glance            = glanceclient.Client(glanceendpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 		cindercredentials = self.novacredentials
 		cindercredentials['project_id'] = self.auth_tenant_name
 		cinder            = cinderclient.Client(**cindercredentials)
                 neutronendpoint   = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-                neutron           = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
+                neutron           = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 		if not self.embedded:
 				if not os.environ.has_key('OS_NOVA_FLAVOR')  and image:
 					raise Exception('Missing OS_NOVA_FLAVOR environment variable pointing to an available flavor for running Create_Server/Create_Stack')
@@ -289,12 +290,12 @@ class Openstuck():
 		tenantid          = self.auth_tenant_id
                 keystone        = self.keystone
                 glanceendpoint  = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-                glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token, insecure=self.insecure)
+                glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 		cindercredentials = self.novacredentials
 		cindercredentials['project_id'] = self.auth_tenant_name
 		cinder            = cinderclient.Client(**cindercredentials)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-                neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token)
+                neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 		nova            = novaclient.Client('2', **self.novacredentials)
 		if self.embeddedobjects.has_key('flavor'):
 			flavors = self.embeddedobjects['flavor']
@@ -495,7 +496,7 @@ class Openstuck():
 		try:
 			if self.externalnet is not None:
                 		neutronendpoint = self.keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-                		neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=self.keystone.auth_token)
+                		neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=self.keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 				externalnets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == self.externalnet ]
 				if externalnets:
 					externalid  = externalnets[0]['id']
@@ -2237,7 +2238,7 @@ class Openstuck():
 			print "Cleaning Glance..."
 		keystone = self.keystone
                 endpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-                glance = glanceclient.Client(endpoint, token=keystone.auth_token, insecure=self.insecure)
+                glance = glanceclient.Client(endpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 
 		for image in images:
 			if image is None:
@@ -2312,7 +2313,7 @@ class Openstuck():
 			print "Cleaning Neutron..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token)
+		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 		for router in routers:
 			if router is None:
 				continue
@@ -2418,7 +2419,7 @@ class Openstuck():
 			print "Cleaning Heat..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='orchestration',endpoint_type=self.endpoint)
-		heat = heatclient.Client('1', endpoint=endpoint, token=keystone.auth_token)
+		heat = heatclient.Client('1', endpoint=endpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 		for stack in stacks:
 			if stack is None:
 				continue
@@ -2631,7 +2632,7 @@ class Openstuck():
 			print "Testing Glance..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-		glance = glanceclient.Client(endpoint, token=keystone.auth_token, insecure=self.insecure)
+		glance = glanceclient.Client(endpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 
 
 		test    = 'Create_Image'
@@ -2942,7 +2943,7 @@ class Openstuck():
 			print "Testing Neutron..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token)
+		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 
 		test    = 'Create_SecurityGroup'
 		reftest = test
@@ -3501,7 +3502,7 @@ class Openstuck():
 			print "Testing Heat..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='orchestration',endpoint_type=self.endpoint)
-		heat = heatclient.Client('1', endpoint=endpoint, token=keystone.auth_token)
+		heat = heatclient.Client('1', endpoint=endpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 	
 		test    = 'Create_Stack'
 		reftest = test
@@ -3935,7 +3936,6 @@ if __name__ == "__main__":
 	hagroup.add_option('-4', dest='haprivatekey', type='string', help='Ha privatekey file. Defaults env[OS_HA_PRIVATEKEY]')
 	parser.add_option_group(hagroup)
 	parser.add_option('--env', dest='env', default=False, action='store_true', help='Print current environment variables values')
-	parser.add_option('-i', '--insecure', dest='insecure', default=False, action='store_true', help='Insecure mode')
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. Defaults to acme')
 	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] or 80 otherwise')
 	parser.add_option('-w', '--fencewait', dest='hafencewait', default=0, type='int', help='Time to wait between fence steps. Defaults to env[OS_HA_FENCEWAIT] or 0 otherwise')
@@ -3957,7 +3957,6 @@ if __name__ == "__main__":
 	project          = options.project
 	verbose          = options.verbose
 	env              = options.env
-	insecure         = options.insecure
 	clouduser        = options.clouduser
 	timeout          = options.timeout
 	ram              = options.ram
@@ -3971,9 +3970,7 @@ if __name__ == "__main__":
 	haprivatekey	 = options.haprivatekey
 	try:
 		keystonecredentials             = _keystonecreds()
-		keystonecredentials['insecure'] = insecure
 		novacredentials                 = _novacreds()
-		novacredentials['insecure']     = insecure
 		endpoint            = os.environ['OS_ENDPOINT_TYPE']                 if os.environ.has_key('OS_ENDPOINT_TYPE')       else 'publicURL'
 		keystonetests       = os.environ['OS_KEYSTONE_TESTS'].split(',')     if os.environ.has_key('OS_KEYSTONE_TESTS')      else keystonedefaulttests
 		glancetests         = os.environ['OS_GLANCE_TESTS'].split(',')       if os.environ.has_key('OS_GLANCE_TESTS')        else glancedefaulttests
@@ -4003,6 +4000,12 @@ if __name__ == "__main__":
 		hafenceusers	    = os.environ['OS_HA_FENCEUSERS'].split(',')	     if os.environ.has_key('OS_HA_FENCEUSERS')       and hafenceservers is not None else None
 		hafencepasswords    = os.environ['OS_HA_FENCEPASSWORDS'].split(',')  if os.environ.has_key('OS_HA_FENCEPASSWORDS')   and hafenceservers is not None  else None
 		hafencemodes	    = os.environ['OS_HA_FENCEMODES'].split(',')	     if os.environ.has_key('OS_HA_FENCEMODES')       and hafenceservers is not None else None
+		cacert              = os.environ['OS_CACERT']                        if os.environ.has_key('OS_CACERT')              else None
+		insecure            = False                                          if cacert is not None                           else True
+		keystonecredentials['insecure'] = insecure
+		keystonecredentials['cacert']   = cacert 
+		novacredentials['insecure']     = insecure
+		novacredentials['cacert']       = cacert 
 
 	except Exception as e:
 		print "Missing environment variables. source your openrc file first"
@@ -4032,7 +4035,7 @@ if __name__ == "__main__":
 	if listservices or testha:
 		embedded = False
 	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testceilometer or testswift or testha or testall or listservices:
-		o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, insecure=insecure, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, haamqp=haamqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes , hafencewait=hafencewait)
+		o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, cacert=cacert, insecure=insecure, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, haamqp=haamqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes , hafencewait=hafencewait)
 	if listservices:
 		if o.admin:
 			o.listservices()
