@@ -210,6 +210,8 @@ class Openstuck():
 					raise Exception('Missing OS_NOVA_VOLUME environment variable pointing to an existing volume for running Create_VolumeServer/Create_Stack')
 				if not os.environ.has_key('OS_NOVA_SNAPSHOT'):
 					raise Exception('Missing OS_NOVA_SNAPSHOT environment variable pointing to an available snapshot for running Create_Server/Create_Stack')
+				if not os.environ.has_key('OS_NOVA_KEYPAIR'):
+					raise Exception('Missing OS_NOVA_KEYPAIR environment variable pointing to an available keypair for running Create_Server/Create_Stack')
 				return
 		if not self.embeddedobjects.has_key('flavor'):
 			flavor1 = nova.flavors.create(name=novaflavor1,ram=self.ram,vcpus=self.cpus,disk=self.disk)
@@ -892,7 +894,7 @@ class Openstuck():
 		starttime = time.time()
 		try:
 			if not embedded:
-				keypairname = None
+				keypairname = os.environ['OS_NOVA_KEYPAIR']
 				image       = os.environ['OS_NOVA_IMAGE']
 				image       = nova.images.find(name=image)
 				network     = os.environ['OS_NOVA_NETWORK']
@@ -2432,7 +2434,7 @@ class Openstuck():
 		if self.verbose >0:
 			print "Cleaning Ceilometer..."
 		os_username, os_password, os_tenant_name, os_auth_url = self.auth_username, self.auth_password, self.auth_tenant_name, self.auth_url
-                ceilometer = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url)
+                ceilometer = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url, os_insecure=self.insecure, os_cacert=self.cacert )
 		for alarm in alarms:
 			if alarm is None:
 				continue
@@ -3576,7 +3578,7 @@ class Openstuck():
 		if self.verbose >0:
 			print "Testing Ceilometer..."
 		os_username, os_password, os_tenant_name, os_auth_url = self.auth_username, self.auth_password, self.auth_tenant_name, self.auth_url
-		ceilometer = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url)
+		ceilometer = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url, os_insecure=self.insecure, os_cacert=self.cacert )
 	
 		test    = 'Create_Alarm'
 		reftest = test
