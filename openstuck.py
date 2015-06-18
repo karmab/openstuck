@@ -2421,7 +2421,7 @@ class Openstuck():
 			print "Cleaning Heat..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='orchestration',endpoint_type=self.endpoint)
-		heat = heatclient.Client('1', endpoint=endpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
+		heat = heatclient.Client('1', endpoint=endpoint, token=keystone.auth_token, insecure=self.insecure, ca_file=self.cacert)
 		for stack in stacks:
 			if stack is None:
 				continue
@@ -3504,7 +3504,7 @@ class Openstuck():
 			print "Testing Heat..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='orchestration',endpoint_type=self.endpoint)
-		heat = heatclient.Client('1', endpoint=endpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
+		heat = heatclient.Client('1', endpoint=endpoint, token=keystone.auth_token, insecure=self.insecure, ca_file=self.cacert)
 	
 		test    = 'Create_Stack'
 		reftest = test
