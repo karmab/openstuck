@@ -79,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', insecure=True, cacert=cacert, keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=0, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', insecure=True, cacert=None, keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=0, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
