@@ -198,7 +198,7 @@ class Openstuck():
 		cindercredentials['project_id'] = self.auth_tenant_name
 		cinder            = cinderclient.Client(**cindercredentials)
                 neutronendpoint   = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-                neutron           = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
+                neutron           = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
 		if not self.embedded:
 				if not os.environ.has_key('OS_NOVA_FLAVOR')  and image:
 					raise Exception('Missing OS_NOVA_FLAVOR environment variable pointing to an available flavor for running Create_Server/Create_Stack')
@@ -295,7 +295,7 @@ class Openstuck():
 		cindercredentials['project_id'] = self.auth_tenant_name
 		cinder            = cinderclient.Client(**cindercredentials)
                 neutronendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-                neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
+                neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
 		nova            = novaclient.Client('2', **self.novacredentials)
 		if self.embeddedobjects.has_key('flavor'):
 			flavors = self.embeddedobjects['flavor']
@@ -496,7 +496,7 @@ class Openstuck():
 		try:
 			if self.externalnet is not None:
                 		neutronendpoint = self.keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-                		neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=self.keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
+                		neutron         = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=self.keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
 				externalnets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == self.externalnet ]
 				if externalnets:
 					externalid  = externalnets[0]['id']
@@ -2313,7 +2313,7 @@ class Openstuck():
 			print "Cleaning Neutron..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
+		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
 		for router in routers:
 			if router is None:
 				continue
@@ -2943,7 +2943,7 @@ class Openstuck():
 			print "Testing Neutron..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
+		neutron = neutronclient.Client('2.0',endpoint_url=endpoint, token=keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
 
 		test    = 'Create_SecurityGroup'
 		reftest = test
