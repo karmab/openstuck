@@ -79,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=0, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', insecure=True, keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=0, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -113,6 +113,7 @@ class Openstuck():
 		except Exception as e:
 			print "Got the following issue: %s" % str(e) 
 			os._exit(1)
+		self.insecure          = insecure
 		self.keystonetests     = keystonetests 
 		self.glancetests       = glancetests 
 		self.cindertests       = cindertests
@@ -4031,7 +4032,7 @@ if __name__ == "__main__":
 	if listservices or testha:
 		embedded = False
 	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testceilometer or testswift or testha or testall or listservices:
-		o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, haamqp=haamqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes , hafencewait=hafencewait)
+		o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, insecure=insecure, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, haamqp=haamqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes , hafencewait=hafencewait)
 	if listservices:
 		if o.admin:
 			o.listservices()
