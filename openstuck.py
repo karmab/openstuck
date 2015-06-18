@@ -1037,7 +1037,7 @@ class Openstuck():
 				if not embedded:
 					image     = os.environ['OS_NOVA_IMAGE']
 					network   = os.environ['OS_NOVA_NETWORK']
-					flavor1   = os.environ['OS_NOVA']
+					flavor1   = os.environ['OS_NOVA_FLAVOR1']
 				else:
 					image     = "%s-image" % self.project
 					network   = "%s-net" % self.project
