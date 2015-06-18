@@ -200,8 +200,10 @@ class Openstuck():
                 neutronendpoint   = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron           = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
 		if not self.embedded:
-				if not os.environ.has_key('OS_NOVA_FLAVOR')  and image:
-					raise Exception('Missing OS_NOVA_FLAVOR environment variable pointing to an available flavor for running Create_Server/Create_Stack')
+				if not os.environ.has_key('OS_NOVA_FLAVOR1')  and image:
+					raise Exception('Missing OS_NOVA_FLAVOR1 environment variable pointing to an available flavor for running Create_Server/Create_Stack')
+				if not os.environ.has_key('OS_NOVA_FLAVOR2')  and image:
+					raise Exception('Missing OS_NOVA_FLAVOR2 environment variable pointing to an available flavor for running Create_Server/Create_Stack')
 				if not os.environ.has_key('OS_NOVA_IMAGE')  and image:
 					raise Exception('Missing OS_NOVA_IMAGE environment variable pointing to an available image for running Create_Server/Create_Stack')
 				if not os.environ.has_key('OS_NOVA_NETWORK'):
@@ -899,7 +901,7 @@ class Openstuck():
 				image       = nova.images.find(name=image)
 				network     = os.environ['OS_NOVA_NETWORK']
 				networkid   = nova.networks.find(label=network).id
-				flavor      = os.environ['OS_NOVA_FLAVOR']
+				flavor      = os.environ['OS_NOVA_FLAVOR1']
 				flavor      = nova.flavors.find(name=flavor)
 			else:
 				flavorname  = "%s-flavor1" % self.project
@@ -1631,7 +1633,11 @@ class Openstuck():
 				output.append(['nova', 'Grow_Server', 'N/A', 'N/A', '0', results,])
 			return
 		try:
-			flavor2 = nova.flavors.find(name="%s-flavor2" % self.project)
+			if self.embedded:
+				flavor2 = nova.flavors.find(name="%s-flavor2" % self.project)
+			else:
+				flavor2 = os.environ('OS_NOVA_FLAVOR2')
+				flavor2 = nova.flavors.find(name=flavor2)
 			server.resize(flavor2)
 			o._available(nova.servers, server.id, timeout, status='RESIZE')
 			results = 'OK'
@@ -2127,7 +2133,7 @@ class Openstuck():
                                 if not embedded:
                                         image     = os.environ['OS_NOVA_IMAGE']   if os.environ.has_key('OS_NOVA_IMAGE')   else 'cirros'
                                         network   = os.environ['OS_NOVA_NETWORK'] if os.environ.has_key('OS_NOVA_NETWORK') else 'private'
-                                        flavor2   = os.environ['OS_NOVA_FLAVOR']  if os.environ.has_key('OS_NOVA_FLAVOR')  else 'm1.small'
+                                        flavor2   = os.environ['OS_NOVA_FLAVOR2'] if os.environ.has_key('OS_NOVA_FLAVOR2')  else 'm1.small'
                                 else:
                                         image     = "%s-image" % self.project
                                         network   = "%s-net" % self.project
