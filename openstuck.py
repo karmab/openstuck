@@ -376,7 +376,7 @@ class Openstuck():
 			timein += 0.2
 			if timein > timeout:
 				raise Exception('Time out waiting for correct status')
-			if newstatus.lower() == 'error':
+			if newstatus.lower() == 'error' or newstatus.lower() == 'failed':
 				if 'fault' in dir(manager.get(objectid)):
 					message = manager.get(objectid).fault['message']
 					raise Exception(message)
