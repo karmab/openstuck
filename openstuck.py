@@ -191,7 +191,7 @@ class Openstuck():
 		keystone          = self.keystone
 		nova              = novaclient.Client('2', **self.novacredentials)
                 glanceendpoint    = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-                glance            = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
+                glance            = glanceclient.Client(glanceendpoint, token=keystone.auth_token, insecure=self.insecure)
 		cindercredentials = self.novacredentials
 		cindercredentials['project_id'] = self.auth_tenant_name
 		cinder            = cinderclient.Client(**cindercredentials)
@@ -288,7 +288,7 @@ class Openstuck():
 		tenantid          = self.auth_tenant_id
                 keystone        = self.keystone
                 glanceendpoint  = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-                glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token)
+                glance          = glanceclient.Client(glanceendpoint, token=keystone.auth_token, insecure=self.insecure)
 		cindercredentials = self.novacredentials
 		cindercredentials['project_id'] = self.auth_tenant_name
 		cinder            = cinderclient.Client(**cindercredentials)
@@ -2236,7 +2236,7 @@ class Openstuck():
 			print "Cleaning Glance..."
 		keystone = self.keystone
                 endpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-                glance = glanceclient.Client(endpoint, token=keystone.auth_token)
+                glance = glanceclient.Client(endpoint, token=keystone.auth_token, insecure=self.insecure)
 
 		for image in images:
 			if image is None:
@@ -2630,7 +2630,7 @@ class Openstuck():
 			print "Testing Glance..."
 		keystone = self.keystone
 		endpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-		glance = glanceclient.Client(endpoint, token=keystone.auth_token)
+		glance = glanceclient.Client(endpoint, token=keystone.auth_token, insecure=self.insecure)
 
 
 		test    = 'Create_Image'
