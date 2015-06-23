@@ -398,6 +398,8 @@ class Openstuck():
 		timein = 0
 		while True:
 			log = server.get_console_output()
+			if self.verbose > 1:
+				print log
 			if search in log:
         			break
 			timein += 1
