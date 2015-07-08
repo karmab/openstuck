@@ -2106,7 +2106,7 @@ class Openstuck():
 				output.append(['nova', 'Shrink_Server', 'N/A', 'N/A', '0', results,])
 			return
 		try:
-			flavor1 = nova.flavors.find("%s-flavor1" % self.project)
+			flavor1 = nova.flavors.find(name="%s-flavor1" % self.project)
 			server.resize(flavor1)
 			o._available(nova.servers, server.id, timeout, status='RESIZE')
 			results = 'OK'
