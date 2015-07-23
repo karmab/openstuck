@@ -79,7 +79,7 @@ def metrics(key):
 
 
 class Openstuck():
-	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', insecure=True, cacert=None, keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=0, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0):
+	def __init__(self, keystonecredentials, novacredentials, project='', endpoint='publicURL', insecure=True, cacert=None, keystonetests=None, glancetests=None, cindertests=None, neutrontests=None, novatests=None, heattests=None, ceilometertests=None, swifttests=None, hatests=None, imagepath=None, imagesize=10, volumetype=None, debug=False,verbose=0, timeout=80, embedded=True, externalnet=None, clouduser='root', ram='512', cpus='1', disk='20',haamqp='rabbitmq-server',haserver=None, hauser='root', hapassword=None, haprivatekey=None, hafenceservers=None, hafencenames=None, hafenceusers=None, hafencepasswords=None, hafencemodes=None, hafencewait=0, provision=False, unprovision=False):
 		self.auth_username    = keystonecredentials['username']
 		self.auth_password    = keystonecredentials['password']
 		self.auth_tenant_name = keystonecredentials['tenant_name']
@@ -89,6 +89,8 @@ class Openstuck():
 		self.embedded	      = embedded
 		self.embeddedobjects  = {}
 		self.externalnet      = externalnet
+		self.provision	      = provision
+		self.unprovision      = unprovision
 		try:
 			self.keystone = keystoneclient.Client(**keystonecredentials)
 			try:
@@ -99,10 +101,10 @@ class Openstuck():
 				self.admin = True
 			except:
 				self.admin = False
-			if embedded and self.admin:
+			if embedded and self.admin and not self.unprovision:
 				embeddedtenant = self.keystone.tenants.create(tenant_name=project, enabled=True)
 				if verbose >0:
-					print "Created tenant %s for nova/heat testing" % project
+					print "Created embedded tenant %s" % project
 				self.keystone.roles.add_user_role(user, adminrole, embeddedtenant)
 				self.auth_tenant_name = project
 				self.auth_tenant_id   = embeddedtenant.id
@@ -346,7 +348,7 @@ class Openstuck():
 				cinder.volumes.delete(volumeid)
 
 	def _clean(self):
-		if self.embedded and self.admin:
+		if self.embedded and self.admin and not self.provision:
 			tenant = self.keystone.tenants.find(name=self.auth_tenant_name)
 			tenant.delete()
 	def _first(self, elements):
@@ -2679,7 +2681,7 @@ class Openstuck():
 
                 test    = 'Delete_Image'
 		reftest = 'Create_Image'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
 	                concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -2898,7 +2900,7 @@ class Openstuck():
 
                 test    = 'Delete_Volume'
 		reftest = 'Create_Volume'
-                if test in tests:
+                if test in tests and not self.provision:
                         output = mgr.list()
                         concurrency, repeat = metrics(reftest)
                         starttime = time.time()
@@ -3069,7 +3071,7 @@ class Openstuck():
 
 		test    = 'Delete_Router'
 		reftest = 'Create_Network'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3084,7 +3086,7 @@ class Openstuck():
 
 		test    = 'Delete_Subnet'
 		reftest = 'Create_Network'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3099,7 +3101,7 @@ class Openstuck():
 
 		test    = 'Delete_Network'
 		reftest = 'Create_Network'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3113,7 +3115,7 @@ class Openstuck():
 
 		test    = 'Delete_SecurityGroup'
 		reftest = 'Create_SecurityGroup'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3638,7 +3640,7 @@ class Openstuck():
 
 		test    = 'Delete_Alarm'
 		reftest = 'Create_Alarm'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3701,7 +3703,7 @@ class Openstuck():
 
 		test    = 'Delete_Container'
 		reftest = 'Create_Container'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3914,6 +3916,88 @@ class Openstuck():
 				print "%s  %s seconds" % (test, runningtime)
 			self._report(category, test, '1', '1', runningtime, errors)
 
+	def _unprovision(self):
+		keystone = self.keystone
+                imageendpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
+                glance = glanceclient.Client(imageendpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
+		cinder = cinderclient.Client(**self.novacredentials)
+		networkendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
+                neutron = neutronclient.Client('2.0',endpoint_url=networkendpoint, token=keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
+                os_username, os_password, os_tenant_name, os_auth_url = self.auth_username, self.auth_password, self.auth_tenant_name, self.auth_url
+                ceilometer = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url, os_insecure=self.insecure, os_cacert=self.cacert )
+                preauthurl   = keystone.service_catalog.url_for(service_type='object-store',endpoint_type=self.endpoint)
+                user         = self.auth_username
+                key          = self.auth_password
+                tenant_name  = self.auth_tenant_name
+                preauthtoken = keystone.auth_token
+                swift        = swiftclient.Connection(preauthurl=preauthurl, user=user, preauthtoken=preauthtoken ,insecure=True,tenant_name=tenant_name)
+		images = [ image for image in glance.images.list() if image.name.startswith(self.image)]
+		for image in images:
+			glance.images.delete(image.id)
+			if self.verbose >0:
+				print "Deleted image %s" % image.name
+		volumes = [ volume for volume in cinder.volumes.list() if volume.name.startswith(self.volume)]
+		for volume in volumes:
+			cinder.volumes.delete(volume.id)
+			if self.verbose >0:
+				print "Deleted volume %s" % volume.name
+		securitygroups = [ s for s in neutron.list_security_groups()['security_groups'] if s['name'].startswith(self.securitygroup) and s['tenant_id'] == keystone.tenant_id]
+		for securitygroup in securitygroups:
+			securitygroupid = securitygroup['id']
+			neutron.delete_security_group(securitygroupid)
+			if self.verbose >0:
+				print "Deleted securitygroup %s" % securitygroup['name']
+		routers = [ r for r in neutron.list_routers()['routers'] if r['name'].startswith(self.router)]
+		for router in routers:
+        		routerid = router['id']
+        		if router['external_gateway_info']:
+                		neutron.remove_gateway_router(routerid)
+        		ports = [ p for p in neutron.list_ports()['ports'] if p['device_id'] == routerid ]
+        		for port in ports:
+                		portid = port['id']
+                		neutron.remove_interface_router(routerid, {'port_id':portid})
+        		neutron.delete_router(routerid)
+			if self.verbose >0:
+				print "Deleted router %s" % router['name']
+		subnets = [ s for s in neutron.list_subnets()['subnets'] if s['name'].startswith(self.subnet) ]
+		for subnet in subnets:
+			subnetid = subnet['id']
+			neutron.delete_subnet(subnetid)
+			if self.verbose >0:
+				print "Deleted subnet %s" % subnet['name']
+		networks = [ n for n in neutron.list_networks()['networks'] if n['name'].startswith(self.network) ]
+		for network in networks:
+			networkid = network['id']
+			neutron.delete_network(networkid)
+			if self.verbose >0:
+				print "Deleted network %s" % network['name']
+		alarms = [ a for a in ceilometer.alarms.list() if a.name.startswith(self.alarm) ]
+		for alarm in alarms:
+			alarm.delete()
+			if self.verbose >0:
+				print "Deleted alarm %s" % alarm.name
+		account = swift.get_account()
+		containers = account[1]
+		for container in containers:
+			if not container['name'].startswith(self.container):
+				continue
+			containerinfo = swift.get_container(container['name'])
+                        objects = containerinfo[1]
+                        if len(objects) > 0:
+                                for obj in objects:
+                                        swift.delete_object(container['name'], obj['name'])
+			swift.delete_container(container['name'])
+			if self.verbose >0:
+				print "Deleted container %s" % container['name']
+		if self.admin:
+			try:
+  				tenant = self.keystone.tenants.find(name=self.project)
+				tenant.delete()
+				if self.verbose >0:
+					print "Deleted tenant %s" % self.project
+			except:
+				print "tenant %s allready gone" % self.project
+
 if __name__ == "__main__":
 	#parse options
 	usage   = "test openstack installation quickly"
@@ -3945,6 +4029,10 @@ if __name__ == "__main__":
 	hagroup.add_option('-3', '--hapassword', dest='hapassword', type='string', help='Hapassword for ha tests. Defaults to env[OS_HA_PASSWORD]')
 	hagroup.add_option('-4', dest='haprivatekey', type='string', help='Ha privatekey file. Defaults env[OS_HA_PRIVATEKEY]')
 	parser.add_option_group(hagroup)
+	provisiongroup = optparse.OptionGroup(parser, 'Provisioning options')
+	provisiongroup.add_option('-5', '--provision', dest='provision', action='store_true',default=False, help='Provision platform')
+	provisiongroup.add_option('-6', '--unprovision', dest='unprovision', action='store_true',default=False, help='Unprovision platform')
+	parser.add_option_group(provisiongroup)
 	parser.add_option('--env', dest='env', default=False, action='store_true', help='Print current environment variables values')
 	parser.add_option('-p', '--project', dest='project', default='acme', type='string', help='Project name to prefix for all elements. Defaults to acme')
 	parser.add_option('-t', '--timeout', dest='timeout', default=80, type='int', help='Timeout when waiting for a ressource to be available. Defaults to env[OS_TIMEOUT] or 80 otherwise')
@@ -3978,6 +4066,8 @@ if __name__ == "__main__":
 	hauser		 = options.hauser
 	hapassword	 = options.hapassword
 	haprivatekey	 = options.haprivatekey
+	provision	 = options.provision
+	unprovision	 = options.unprovision
 	try:
 		keystonecredentials             = _keystonecreds()
 		novacredentials                 = _novacreds()
@@ -4044,13 +4134,16 @@ if __name__ == "__main__":
 		sys.exit(0)	
 	if listservices or testha:
 		embedded = False
-	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testceilometer or testswift or testha or testall or listservices:
-		o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, cacert=cacert, insecure=insecure, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, haamqp=haamqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes , hafencewait=hafencewait)
+	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testceilometer or testswift or testha or testall or listservices or unprovision:
+		o = Openstuck(keystonecredentials=keystonecredentials, novacredentials=novacredentials, endpoint=endpoint, cacert=cacert, insecure=insecure, project= project, imagepath=imagepath, imagesize=imagesize, volumetype=volumetype, keystonetests=keystonetests, glancetests=glancetests, cindertests=cindertests, neutrontests=neutrontests, novatests=novatests, heattests=heattests, ceilometertests=ceilometertests, swifttests=swifttests, hatests=hatests, verbose=verbose, timeout=timeout, embedded=embedded, externalnet=externalnet, clouduser=clouduser, ram=ram, cpus=cpus, disk=disk, haamqp=haamqp, haserver=haserver, hauser=hauser, hapassword=hapassword, haprivatekey=haprivatekey, hafenceservers=hafenceservers, hafencenames=hafencenames, hafenceusers=hafenceusers, hafencepasswords=hafencepasswords, hafencemodes=hafencemodes , hafencewait=hafencewait, provision=provision, unprovision=unprovision)
 	if listservices:
 		if o.admin:
 			o.listservices()
 		else:
 			print 'Admin required to list services'
+	    	sys.exit(0)
+	if unprovision:
+		o._unprovision()
 	    	sys.exit(0)
 	if testkeystone or testall:
 		tenants, users, roles = o.keystonetest()
@@ -4098,19 +4191,19 @@ if __name__ == "__main__":
 	#cleaning
 	if testkeystone or testall:
                 o.keystoneclean(tenants, users, roles)
-	if testglance or testall:
+	if not provision and (testglance or testall):
 		o.glanceclean(images)
-	if testcinder or testall:
+	if not provision and (testcinder or testall):
 		o.cinderclean(volumes, snapshotvolumes, backups, snapshots, quotavolumes)
-	if testneutron or testall:
+	if not provision and (testneutron or testall):
 		o.neutronclean(securitygroups, networks, subnets, routers)
 	if testnova or testall:
 		o.novaclean(flavors, keypairs, servers, volumeservers, snapshotservers, attachedvolumes, floatings)
 	if testheat or testall:
 		o.heatclean(stacks)
-	if testceilometer or testceilometer:
+	if not provision and (testceilometer or testceilometer):
 		o.ceilometerclean(alarms)
-	if testswift or testall:
+	if not provision and (testswift or testall):
 		o.swiftclean(containers)
 	#reporting
 	if testkeystone or testglance or testcinder or testneutron or testnova or testheat or testceilometer or testswift or testha or testall:
