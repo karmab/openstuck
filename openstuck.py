@@ -229,6 +229,12 @@ class Openstuck():
 			if self.verbose >0:
 				print "Created keypair %s for nova/heat testing" % novakey
 			self.private_key = keypair.private_key
+			if self.provision:
+				with open("%s.key" % self.project, 'w') as k:
+					os.chmod(name, 0600)
+					k.write(self.private_key)
+					if self.verbose >0:
+						print "Created privatekey file %s.key for later use" % (self.project)
 			self.embeddedobjects['keypair'] = keypair
 		if not self.embeddedobjects.has_key('image') and image:
 			image           = glance.images.create(name=novaimage, visibility='private', disk_format='qcow2',container_format='bare')
