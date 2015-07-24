@@ -47,7 +47,7 @@ keystonedefaulttests     = ['Create_Tenant', 'Create_User', 'Create_Role', 'Add_
 glancedefaulttests       = ['Create_Image', 'List_Image', 'Delete_Image']
 cinderdefaulttests       = ['Create_Volume', 'List_Volume', 'Create_Backup', 'List_Backup', 'Restore_Backup', 'Delete_Backup', 'Create_Snapshot', 'List_Snapshot', 'Delete_Snapshot', 'Delete_Volume', 'Reach_VolumeQuota', 'Reach_StorageQuota']
 neutrondefaulttests      = ['Create_SecurityGroup', 'Create_Network', 'Create_Subnet', 'Create_Router', 'List_Network', 'List_Subnet', 'List_Router', 'Delete_Router','Delete_Subnet', 'Delete_Network', 'Delete_SecurityGroup']
-novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIP', 'Check_SSH', 'Grow_Server', 'Shrink_Server', 'Migrate_Server', 'Attach_Volume', 'Detach_Volume', 'Create_VolumeServer', 'Create_SnapshotServer', 'Delete_Server']
+novadefaulttests         = ['Create_Flavor','List_Flavor', 'Delete_Flavor', 'Create_KeyPair', 'List_KeyPair', 'Delete_KeyPair', 'Create_Server', 'List_Server', 'Check_Console', 'Check_Novnc', 'Check_Connectivity', 'Add_FloatingIP', 'Check_SSH', 'Grow_Server', 'Migrate_Server', 'Attach_Volume', 'Detach_Volume', 'Create_VolumeServer', 'Create_SnapshotServer', 'Delete_Server']
 heatdefaulttests         = ['Create_Stack', 'List_Stack', 'Update_Stack', 'Delete_Stack']
 ceilometerdefaulttests   = ['Create_Alarm', 'List_Alarm', 'List_Meter', 'Delete_Alarm']
 swiftdefaulttests        = ['Create_Container', 'List_Container', 'Delete_Container']
@@ -114,6 +114,7 @@ class Openstuck():
 			
 		except Exception as e:
 			print "Got the following issue: %s" % str(e) 
+			print "Consider running\npython %s --unprovision -v --project %s" % (sys.argv[0], project)
 			os._exit(1)
 		self.insecure          = insecure
 		self.cacert            = cacert
@@ -288,7 +289,9 @@ class Openstuck():
         			securitygroupid=securitygroup['id']
 				self.embeddedobjects['securitygroup'] = securitygroupid
         			sshrule = {'security_group_rule': {'direction': 'ingress','security_group_id': securitygroupid, 'port_range_min': '22' ,'port_range_max': '22','protocol': 'tcp','remote_group_id': None,'remote_ip_prefix': '0.0.0.0/0'}}
+        			icmprule = {'security_group_rule': {'direction': 'ingress','security_group_id': securitygroupid, 'protocol': 'icmp','remote_group_id': None,'remote_ip_prefix': '0.0.0.0/0'}}
         			neutron.create_security_group_rule(sshrule)
+        			neutron.create_security_group_rule(icmprule)
 				if self.verbose >0:
 					print "Created security group rule for nova/heat testing"
 		return 
@@ -418,6 +421,12 @@ class Openstuck():
 				if timein > timeout:
 					return False
 				time.sleep(0.2)
+				if self.verbose > 1:
+					if 'stack_name' in dir(manager.get(objectid)):
+						name = manager.get(objectid).stack_name
+					else:
+						name = manager.get(objectid).name
+					print "Waiting for deletion on %s and object %s" % (manager.__class__.__name__, name)
 				continue
 			except (keystone_notfound, glance_notfound, cinder_notfound, nova_notfound, neutron_notfound, heat_notfound, ceilometer_notfound, swift_notfound):
 				return True
@@ -2410,12 +2419,12 @@ class Openstuck():
 					nova.servers.delete(volumeserver.id)
 				except:
 					continue
-		for flavor in flavors:
-			if flavor is None:
+		for  floating in floatings:
+			if floating is None:
 				continue
 			else:
 				try:
-					nova.servers.delete(flavor.id)
+					nova.floating_ips.delete(floating.id)
 				except:
 					continue
 		for attachedvolume in attachedvolumes:
@@ -3181,7 +3190,7 @@ class Openstuck():
 
 		test    = 'Delete_Flavor'
 		reftest = 'Create_Flavor'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3211,7 +3220,7 @@ class Openstuck():
 	
 		test    = 'Remove_FlavorAccess'
 		reftest = test
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3258,7 +3267,7 @@ class Openstuck():
 
 		test    = 'Delete_KeyPair'
 		reftest = 'Create_KeyPair'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3489,7 +3498,7 @@ class Openstuck():
 
 		test    = 'Delete_Server'
 		reftest = 'Create_Server'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3565,7 +3574,7 @@ class Openstuck():
 
 		test    = 'Delete_Stack'
 		reftest = 'Create_Stack'
-		if test in tests:
+		if test in tests and not self.provision:
 			output = mgr.list()
                 	concurrency, repeat = metrics(reftest)
 			starttime = time.time()
@@ -3917,10 +3926,21 @@ class Openstuck():
 			self._report(category, test, '1', '1', runningtime, errors)
 
 	def _unprovision(self):
+		novaflavor1       = "%s-flavor1" % self.project
+                novaflavor2       = "%s-flavor2" % self.project
+                novaimage         = "%s-image" % self.project
+                novavolume        = "%s-volume" % self.project
+                novasnapshot      = "%s-snapshot" % self.project
+                novakey           = "%s-key" % self.project
+                novanet           = "%s-net" % self.project
+                novasubnet        = "%s-subnet" % self.project
+                novarouter        = "%s-router" % self.project
+		all_tenants = {'all_tenants': 1}
 		keystone = self.keystone
                 imageendpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
                 glance = glanceclient.Client(imageendpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
 		cinder = cinderclient.Client(**self.novacredentials)
+		nova   = novaclient.Client('2', **self.novacredentials)
 		networkendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
                 neutron = neutronclient.Client('2.0',endpoint_url=networkendpoint, token=keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
                 os_username, os_password, os_tenant_name, os_auth_url = self.auth_username, self.auth_password, self.auth_tenant_name, self.auth_url
@@ -3936,7 +3956,7 @@ class Openstuck():
 			glance.images.delete(image.id)
 			if self.verbose >0:
 				print "Deleted image %s" % image.name
-		volumes = [ volume for volume in cinder.volumes.list() if volume.name.startswith(self.volume)]
+		volumes = [ v for v  in cinder.volumes.list(search_opts=all_tenants) if v.name.startswith(self.volume)]
 		for volume in volumes:
 			cinder.volumes.delete(volume.id)
 			if self.verbose >0:
@@ -3989,6 +4009,100 @@ class Openstuck():
 			swift.delete_container(container['name'])
 			if self.verbose >0:
 				print "Deleted container %s" % container['name']
+		flavors = [ f for f in nova.flavors.list() if f.name.startswith(self.flavor)]
+		for flavor in flavors:
+			nova.flavors.delete(flavor.id)
+			if self.verbose >0:
+				print "Deleted flavor %s" % flavor.name
+		keypairs = [ k for k in nova.keypairs.list() if k.name.startswith(self.keypair)]
+		for keypair in keypairs:
+			nova.keypairs.delete(keypair.id)
+			if self.verbose >0:
+				print "Deleted keypair %s" % keypair.name
+		servers = [ s for s in nova.servers.list(search_opts=all_tenants) if s.name.startswith(self.server)]
+		for server in servers:
+			nova.servers.delete(server.id)
+			o._deleted(nova.servers, server.id, timeout)
+			if self.verbose >0:
+				print "Deleted server %s" % server.name
+		snapshotservers = [ s for s in nova.servers.list(search_opts=all_tenants) if s.name.startswith(self.snapshotserver)]
+		for snapshotserver in snapshotservers:
+			nova.servers.delete(snapshotserver.id)
+			if self.verbose >0:
+				print "Deleted snapshotserver %s" % snapshotserver.name
+		volumeservers = [ v for v in nova.servers.list(search_opts=all_tenants) if v.name.startswith(self.volumeserver)]
+		for volumeserver in volumeservers:
+			nova.servers.delete(volumeserver.id)
+			if self.verbose >0:
+				print "Deleted volumeserver %s" % volumeserver.name
+		#floatings = [ f for f in nova.floating_ips.list() if f.name.startswith(self.floating)]
+		#for floating in floatings:
+		#	nova.floating_ips.delete(floating.id)
+		#	if self.verbose >0:
+		#		print "Deleted floating %s" % floating.name
+		attachedvolumes = [ v for v in cinder.volumes.list() if v.name.startswith("attachedvolume-%s" % self.server)]
+		for attachedvolume in attachedvolumes:
+			cinder.volumes.delete(attachedvolume.id)
+			if self.verbose >0:
+				print "Deleted attachedvolume %s" % attachedvolume.name
+		flavors = [ f for f in nova.flavors.list() if f.name == novaflavor1 or f.name == novaflavor2]
+		for flavor in  flavors:
+			nova.flavors.delete(flavor.id)
+			if self.verbose >0:
+				print "Deleted flavor %s" % flavor.name
+		keypairs = [ k for k in nova.keypairs.list() if k.name == novakey]
+		for keypair in keypairs:
+			keypair.delete()
+			if self.verbose >0:
+				print "Deleted keypair %s" % keypair.name
+		images = [ i for i in nova.images.list() if i.name == novaimage]
+		for image in images:
+			glance.images.delete(image.id)
+			if self.verbose >0:
+				print "Deleted image %s" % image.name
+		routers = [ r for r in neutron.list_routers()['routers'] if r['name'] == novarouter]
+		for router in routers:
+			routerid  = router['id']
+			if router['external_gateway_info']:
+				neutron.remove_gateway_router(routerid)
+			ports = [ p for p in neutron.list_ports()['ports'] if p['device_id'] == routerid ]
+                	for port in ports:
+				portid = port['id']
+				neutron.remove_interface_router(routerid, {'port_id':portid})
+			neutron.delete_router(routerid)
+			if self.verbose >0:
+				print "Deleted router %s" % router['name']
+		subnets  = [ s for s in neutron.list_subnets()['subnets']   if s['name'] == novasubnet ]
+		networks = [ n for n in neutron.list_networks()['networks'] if n['name'] == novanet  ]
+		for network in networks:
+			networkid = network['id']
+			ports = [ port for port in neutron.list_ports()['ports'] if port['network_id'] == networkid ]
+			for port in ports:
+        			portid = port['id']
+        			neutron.delete_port(portid)			
+		for subnet in subnets:
+			subnetid = subnet['id']
+			neutron.delete_subnet(subnetid)
+			if self.verbose >0:
+				print "Deleted subnet %s" % subnet['name']
+		for network in networks:
+			networkid = network['id']
+			neutron.delete_network(networkid)
+			if self.verbose >0:
+				print "Deleted network %s" % network['name']
+		snapshots = [ s for s in cinder.volume_snapshots.list(search_opts=all_tenants) if s.name == novasnapshot ]
+		for snapshot in snapshots:
+			cinder.volume_snapshots.delete(snapshot.id)
+			o._deleted(cinder.volume_snapshots, snapshot.id, self.timeout)
+			if self.verbose >0:
+				print "Deleted snapshot %s" % snapshot.name
+		volumes = [ v for v in cinder.volumes.list(search_opts=all_tenants) if v.name == novavolume ]
+		for volume in volumes:
+			o._available(cinder.volumes, volume.id, self.timeout)
+			cinder.volumes.delete(volume.id)
+			o._deleted(cinder.volumes, volume.id, self.timeout)
+			if self.verbose >0:
+				print "Deleted volume %s" % volume.name
 		if self.admin:
 			try:
   				tenant = self.keystone.tenants.find(name=self.project)
@@ -4172,12 +4286,15 @@ if __name__ == "__main__":
 				volume  = True
 				snapshot= True
 			o._novabefore(externalnet=externalnet, image=image, volume=volume, snapshot=snapshot)
+			flavors, keypairs, servers, volumeservers, snapshotservers, attachedvolumes, floatings = o.novatest()
+		except KeyboardInterrupt:
+			o._unprovision()
+			sys.exit(1)
 		except Exception as e:	
 			print e
 			o._novaafter()
 			o._clean()
 			sys.exit(1)
-		flavors, keypairs, servers, volumeservers, snapshotservers, attachedvolumes, floatings = o.novatest()
 	if testheat or testall:
 		#if o.embedded:
 		o._novabefore(externalnet=externalnet, image=True, volume=False, snapshot=False)
@@ -4197,9 +4314,9 @@ if __name__ == "__main__":
 		o.cinderclean(volumes, snapshotvolumes, backups, snapshots, quotavolumes)
 	if not provision and (testneutron or testall):
 		o.neutronclean(securitygroups, networks, subnets, routers)
-	if testnova or testall:
+	if not provision and (testnova or testall):
 		o.novaclean(flavors, keypairs, servers, volumeservers, snapshotservers, attachedvolumes, floatings)
-	if testheat or testall:
+	if not provision and (testheat or testall):
 		o.heatclean(stacks)
 	if not provision and (testceilometer or testceilometer):
 		o.ceilometerclean(alarms)
@@ -4212,6 +4329,6 @@ if __name__ == "__main__":
 			print "Final report:"
 		print o._printreport()
 		#if embedded:	
-		if testnova or testheat:
+		if not provision and (testnova or testheat):
 			o._novaafter()
 		o._clean()

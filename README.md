@@ -71,6 +71,7 @@ This script allows testing/stressing/benchmarking of your openstack deployments 
 - improve values for testing alarms creation (threshold and metrics with some sense)
 - handle specifically known exceptions instead of beeing generic
 - Create a dedicated metadata check with a script that does a echo in /dev/ttyS0
+- Add specific ping security rules (usefull in provisioning mode)
 
 
 ##Known bugs
