@@ -231,7 +231,7 @@ class Openstuck():
 			self.private_key = keypair.private_key
 			if self.provision:
 				with open("%s.key" % self.project, 'w') as k:
-					os.chmod(name, 0600)
+					os.chmod(k, 0600)
 					k.write(self.private_key)
 					if self.verbose >0:
 						print "Created privatekey file %s.key for later use" % (self.project)
