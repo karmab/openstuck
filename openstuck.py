@@ -490,6 +490,29 @@ class Openstuck():
 				break
 		stdin, stdout, stderr   = ssh.exec_command(startcmd)
 		return success
+  
+  	def _external(self, cidr, iprange):
+		externalnet      = "%s-externalnet" % self.project
+		externalsubnet	 = "%s-externalsubnet" % self.project
+		keystone         = self.keystone
+                neutronendpoint  = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
+                neutron          = neutronclient.Client('2.0',endpoint_url=neutronendpoint, token=keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
+		network          = {'name': externalnet, 'admin_state_up': True, 'router:external': True}
+		network          = neutron.create_network({'network':network})
+		networkid        = network['network']['id']
+		if self.verbose >0:
+			print "Created external network %s" % externalnet
+		startip, endip   = iprange.split('-')
+		subnet           = {'name': externalsubnet, 'network_id':networkid, 'ip_version':4,"cidr":cidr, "allocation_pools": [{"start": startip, "end": endip }]}
+		subnet           = neutron.create_subnet({'subnet':subnet})
+		subnetid         = subnet['subnet']['id']
+		if self.verbose >0:
+			print "Created external subnet %s with cidr: %s" % (externalsubnet, cidr)
+		self.externalnet = externalnet
+		if self.verbose >0:
+			print "using %s as external net" % (externalnet)
+		return network['network'], subnet['subnet']
+		
 
 	def Add_FlavorAccess(self, nova, flavor, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
@@ -779,7 +802,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Container: %s %s seconds %s" % (container, runningtime, results )
 			output.append(['swiftcontainer', 'Create_Container', container, container, runningtime, results,])	
-			
+
 	def Create_Flavor(self, nova, flavor, flavors=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
@@ -834,10 +857,11 @@ class Openstuck():
 			print "Create_KeyPair: %s %s seconds %s" % (keypair, runningtime, results )
 			output.append(['nova', 'Create_KeyPair', keypair, keypair, runningtime, results,])
 
-	def Create_Network(self, neutron, network, networks=None, errors=None, output=None, verbose=0, timeout=20):
+	def Create_Network(self, neutron, network, networks=None, errors=None, output=None, verbose=0, timeout=20, external=False):
 		starttime = time.time()
 		try:
-			newnetwork = {'name': network, 'admin_state_up': True}
+			#newnetwork = {'name': network, 'admin_state_up': True}
+			newnetwork = {'name': network, 'admin_state_up': True, 'router:external': external}
 			newnetwork = neutron.create_network({'network':newnetwork})
 			results = 'OK'
 			networks.append(newnetwork['network']['id'])
@@ -850,6 +874,7 @@ class Openstuck():
 			runningtime = "%0.3f" % (endtime -starttime) 
 			print "Create_Network: %s %s seconds %s" % (network, runningtime, results )
 			output.append(['neutron', 'Create_Network', network, network, runningtime, results,])
+
 	def Create_Role(self, keystone, name, roles=None, errors=None, output=None, verbose=0, timeout=20):
 		starttime = time.time()
 		try:
@@ -2362,16 +2387,20 @@ class Openstuck():
 				continue
 			else:
 				try:
-					neutron.subnets.delete(subnet['id'])
-				except:
+					neutron.delete_subnet(subnet['id'])
+					if self.verbose >0:
+						print "Deleting subnet %s" % subnet['name']
+				except Exception as e:
 					continue
 		for network in networks:
 			if network is None:
 				continue
 			else:
 				try:
-					neutron.networks.delete(network['id'])
-				except:
+					neutron.delete_network(network['id'])
+					if self.verbose >0:
+						print "Deleting network %s" % network['name']
+				except Exception as e:
 					continue
 		for securitygroup in securitygroups:
 			if securitygroup is None:
@@ -3932,32 +3961,34 @@ class Openstuck():
 			self._report(category, test, '1', '1', runningtime, errors)
 
 	def _unprovision(self):
-		novaflavor1       = "%s-flavor1" % self.project
-                novaflavor2       = "%s-flavor2" % self.project
-                novaimage         = "%s-image" % self.project
-                novavolume        = "%s-volume" % self.project
-                novasnapshot      = "%s-snapshot" % self.project
-                novakey           = "%s-key" % self.project
-                novanet           = "%s-net" % self.project
-                novasubnet        = "%s-subnet" % self.project
-                novarouter        = "%s-router" % self.project
-		all_tenants = {'all_tenants': 1}
-		keystone = self.keystone
-                imageendpoint = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
-                glance = glanceclient.Client(imageendpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
-		cinder = cinderclient.Client(**self.novacredentials)
-		nova   = novaclient.Client('2', **self.novacredentials)
+		novaflavor1     = "%s-flavor1" % self.project
+                novaflavor2     = "%s-flavor2" % self.project
+                novaimage       = "%s-image" % self.project
+                novavolume      = "%s-volume" % self.project
+                novasnapshot    = "%s-snapshot" % self.project
+                novakey         = "%s-key" % self.project
+                novanet         = "%s-net" % self.project
+                novasubnet      = "%s-subnet" % self.project
+                novarouter      = "%s-router" % self.project
+		externalnet     = "%s-externalnet" % self.project
+		externalsubnet  = "%s-externalsubnet" % self.project
+		all_tenants     = {'all_tenants': 1}
+		keystone        = self.keystone
+                imageendpoint   = keystone.service_catalog.url_for(service_type='image',endpoint_type=self.endpoint)
+                glance          = glanceclient.Client(imageendpoint, token=keystone.auth_token, insecure=self.insecure, cacert=self.cacert)
+		cinder          = cinderclient.Client(**self.novacredentials)
+		nova            = novaclient.Client('2', **self.novacredentials)
 		networkendpoint = keystone.service_catalog.url_for(service_type='network',endpoint_type=self.endpoint)
-                neutron = neutronclient.Client('2.0',endpoint_url=networkendpoint, token=keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
+                neutron         = neutronclient.Client('2.0',endpoint_url=networkendpoint, token=keystone.auth_token, insecure=self.insecure, ca_cert=self.cacert)
                 os_username, os_password, os_tenant_name, os_auth_url = self.auth_username, self.auth_password, self.auth_tenant_name, self.auth_url
-                ceilometer = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url, os_insecure=self.insecure, os_cacert=self.cacert )
-                preauthurl   = keystone.service_catalog.url_for(service_type='object-store',endpoint_type=self.endpoint)
-                user         = self.auth_username
-                key          = self.auth_password
-                tenant_name  = self.auth_tenant_name
-                preauthtoken = keystone.auth_token
-                swift        = swiftclient.Connection(preauthurl=preauthurl, user=user, preauthtoken=preauthtoken ,insecure=True,tenant_name=tenant_name)
-		images = [ image for image in glance.images.list() if image.name.startswith(self.image)]
+                ceilometer      = ceilometerclient.get_client('2', os_username=os_username, os_password=os_password,  os_tenant_name=os_tenant_name, os_auth_url=os_auth_url, os_insecure=self.insecure, os_cacert=self.cacert )
+                preauthurl      = keystone.service_catalog.url_for(service_type='object-store',endpoint_type=self.endpoint)
+                user            = self.auth_username
+                key             = self.auth_password
+                tenant_name     = self.auth_tenant_name
+                preauthtoken    = keystone.auth_token
+                swift           = swiftclient.Connection(preauthurl=preauthurl, user=user, preauthtoken=preauthtoken ,insecure=True,tenant_name=tenant_name)
+		images          = [ image for image in glance.images.list() if image.name.startswith(self.image)]
 		for image in images:
 			glance.images.delete(image.id)
 			if self.verbose >0:
@@ -3985,13 +4016,13 @@ class Openstuck():
         		neutron.delete_router(routerid)
 			if self.verbose >0:
 				print "Deleted router %s" % router['name']
-		subnets = [ s for s in neutron.list_subnets()['subnets'] if s['name'].startswith(self.subnet) ]
+		subnets = [ s for s in neutron.list_subnets()['subnets'] if s['name'].startswith(self.subnet) or s['name'] == externalsubnet ]
 		for subnet in subnets:
 			subnetid = subnet['id']
 			neutron.delete_subnet(subnetid)
 			if self.verbose >0:
 				print "Deleted subnet %s" % subnet['name']
-		networks = [ n for n in neutron.list_networks()['networks'] if n['name'].startswith(self.network) ]
+		networks = [ n for n in neutron.list_networks()['networks'] if n['name'].startswith(self.network) or n['name'] == externalnet ]
 		for network in networks:
 			networkid = network['id']
 			neutron.delete_network(networkid)
@@ -4191,37 +4222,39 @@ if __name__ == "__main__":
 	try:
 		keystonecredentials             = _keystonecreds()
 		novacredentials                 = _novacreds()
-		endpoint            = os.environ['OS_ENDPOINT_TYPE']                 if os.environ.has_key('OS_ENDPOINT_TYPE')       else 'publicURL'
-		keystonetests       = os.environ['OS_KEYSTONE_TESTS'].split(',')     if os.environ.has_key('OS_KEYSTONE_TESTS')      else keystonedefaulttests
-		glancetests         = os.environ['OS_GLANCE_TESTS'].split(',')       if os.environ.has_key('OS_GLANCE_TESTS')        else glancedefaulttests
-		cindertests         = os.environ['OS_CINDER_TESTS'].split(',')       if os.environ.has_key('OS_CINDER_TESTS')        else cinderdefaulttests
-		neutrontests        = os.environ['OS_NEUTRON_TESTS'].split(',')      if os.environ.has_key('OS_NEUTRON_TESTS')       else neutrondefaulttests
-		novatests           = os.environ['OS_NOVA_TESTS'].split(',')         if os.environ.has_key('OS_NOVA_TESTS')          else novadefaulttests
-		heattests           = os.environ['OS_HEAT_TESTS'].split(',')         if os.environ.has_key('OS_HEAT_TESTS')          else heatdefaulttests
-		swifttests          = os.environ['OS_SWIFT_TESTS'].split(',')        if os.environ.has_key('OS_SWIFT_TESTS')         else swiftdefaulttests
-		ceilometertests     = os.environ['OS_CEILOMETER_TESTS'].split(',')   if os.environ.has_key('OS_CEILOMETER_TESTS')    else ceilometerdefaulttests
-		hatests             = os.environ['OS_HA_TESTS'].split(',')           if os.environ.has_key('OS_HA_TESTS')            else hadefaulttests
-		imagepath           = os.environ['OS_GLANCE_IMAGE_PATH']             if os.environ.has_key('OS_GLANCE_IMAGE_PATH')   else None
-		imagesize           = int(os.environ['OS_GLANCE_IMAGE_SIZE'])        if os.environ.has_key('OS_GLANCE_IMAGE_SIZE')   else 10
-		volumetype          = os.environ['OS_CINDER_VOLUME_TYPE']            if os.environ.has_key('OS_CINDER_VOLUME_TYPE')  else None
-		externalnet         = os.environ['OS_NEUTRON_EXTERNALNET']           if os.environ.has_key('OS_NEUTRON_EXTERNALNET') else None
-		timeout             = int(os.environ['OS_TIMEOUT'])                  if os.environ.has_key('OS_TIMEOUT')             else timeout
-		ram                 = int(os.environ['OS_NOVA_RAM'])                 if os.environ.has_key('OS_NOVA_RAM')            else ram
-		cpus                = int(os.environ['OS_NOVA_CPUS'])                if os.environ.has_key('OS_NOVA_CPUS')           else cpus
-		disk                = int(os.environ['OS_NOVA_DISK'])                if os.environ.has_key('OS_NOVA_DISK')           else disk
-		haserver            = os.environ['OS_HA_SERVER']                     if os.environ.has_key('OS_HA_SERVER')           else haserver
-		hauser              = os.environ['OS_HA_USER']                       if os.environ.has_key('OS_HA_USER')             else hauser
-		hapassword          = os.environ['OS_HA_PASSWORD']                   if os.environ.has_key('OS_HA_PASSWORD')         else hapassword
-		haprivatekey        = os.environ['OS_HA_PRIVATEKEY']                 if os.environ.has_key('OS_HA_PRIVATEKEY')       else haprivatekey
-		haamqp              = os.environ['OS_HA_AMQP']                       if os.environ.has_key('OS_HA_AMQP')             else 'rabbitmq-server'
-		hafencewait         = int(os.environ['OS_HA_FENCEWAIT'])             if os.environ.has_key('OS_HA_FENCEWAIT')        else hafencewait
-		hafenceservers      = os.environ['OS_HA_FENCESERVERS'].split(',')    if os.environ.has_key('OS_HA_FENCESERVERS')     else None
-		hafencenames        = os.environ['OS_HA_FENCENAMES'].split(',')      if os.environ.has_key('OS_HA_FENCENAMES')       and hafenceservers is not None else None
-		hafenceusers	    = os.environ['OS_HA_FENCEUSERS'].split(',')	     if os.environ.has_key('OS_HA_FENCEUSERS')       and hafenceservers is not None else None
-		hafencepasswords    = os.environ['OS_HA_FENCEPASSWORDS'].split(',')  if os.environ.has_key('OS_HA_FENCEPASSWORDS')   and hafenceservers is not None  else None
-		hafencemodes	    = os.environ['OS_HA_FENCEMODES'].split(',')	     if os.environ.has_key('OS_HA_FENCEMODES')       and hafenceservers is not None else None
-		cacert              = os.environ['OS_CACERT']                        if os.environ.has_key('OS_CACERT')              else None
-		insecure            = False                                          if cacert is not None                           else True
+		endpoint            = os.environ['OS_ENDPOINT_TYPE']                 if os.environ.has_key('OS_ENDPOINT_TYPE')         else 'publicURL'
+		keystonetests       = os.environ['OS_KEYSTONE_TESTS'].split(',')     if os.environ.has_key('OS_KEYSTONE_TESTS')        else keystonedefaulttests
+		glancetests         = os.environ['OS_GLANCE_TESTS'].split(',')       if os.environ.has_key('OS_GLANCE_TESTS')          else glancedefaulttests
+		cindertests         = os.environ['OS_CINDER_TESTS'].split(',')       if os.environ.has_key('OS_CINDER_TESTS')          else cinderdefaulttests
+		neutrontests        = os.environ['OS_NEUTRON_TESTS'].split(',')      if os.environ.has_key('OS_NEUTRON_TESTS')         else neutrondefaulttests
+		novatests           = os.environ['OS_NOVA_TESTS'].split(',')         if os.environ.has_key('OS_NOVA_TESTS')            else novadefaulttests
+		heattests           = os.environ['OS_HEAT_TESTS'].split(',')         if os.environ.has_key('OS_HEAT_TESTS')            else heatdefaulttests
+		swifttests          = os.environ['OS_SWIFT_TESTS'].split(',')        if os.environ.has_key('OS_SWIFT_TESTS')           else swiftdefaulttests
+		ceilometertests     = os.environ['OS_CEILOMETER_TESTS'].split(',')   if os.environ.has_key('OS_CEILOMETER_TESTS')      else ceilometerdefaulttests
+		hatests             = os.environ['OS_HA_TESTS'].split(',')           if os.environ.has_key('OS_HA_TESTS')              else hadefaulttests
+		imagepath           = os.environ['OS_GLANCE_IMAGE_PATH']             if os.environ.has_key('OS_GLANCE_IMAGE_PATH')     else None
+		imagesize           = int(os.environ['OS_GLANCE_IMAGE_SIZE'])        if os.environ.has_key('OS_GLANCE_IMAGE_SIZE')     else 10
+		volumetype          = os.environ['OS_CINDER_VOLUME_TYPE']            if os.environ.has_key('OS_CINDER_VOLUME_TYPE')    else None
+		externalnet         = os.environ['OS_NEUTRON_EXTERNALNET']           if os.environ.has_key('OS_NEUTRON_EXTERNALNET')   else None
+		externalcidr        = os.environ['OS_NEUTRON_EXTERNALCIDR']          if os.environ.has_key('OS_NEUTRON_EXTERNALCIDR')  else None
+		externalrange       = os.environ['OS_NEUTRON_EXTERNALRANGE']         if os.environ.has_key('OS_NEUTRON_EXTERNALRANGE') else None
+		timeout             = int(os.environ['OS_TIMEOUT'])                  if os.environ.has_key('OS_TIMEOUT')               else timeout
+		ram                 = int(os.environ['OS_NOVA_RAM'])                 if os.environ.has_key('OS_NOVA_RAM')              else ram
+		cpus                = int(os.environ['OS_NOVA_CPUS'])                if os.environ.has_key('OS_NOVA_CPUS')             else cpus
+		disk                = int(os.environ['OS_NOVA_DISK'])                if os.environ.has_key('OS_NOVA_DISK')             else disk
+		haserver            = os.environ['OS_HA_SERVER']                     if os.environ.has_key('OS_HA_SERVER')             else haserver
+		hauser              = os.environ['OS_HA_USER']                       if os.environ.has_key('OS_HA_USER')               else hauser
+		hapassword          = os.environ['OS_HA_PASSWORD']                   if os.environ.has_key('OS_HA_PASSWORD')           else hapassword
+		haprivatekey        = os.environ['OS_HA_PRIVATEKEY']                 if os.environ.has_key('OS_HA_PRIVATEKEY')         else haprivatekey
+		haamqp              = os.environ['OS_HA_AMQP']                       if os.environ.has_key('OS_HA_AMQP')               else 'rabbitmq-server'
+		hafencewait         = int(os.environ['OS_HA_FENCEWAIT'])             if os.environ.has_key('OS_HA_FENCEWAIT')          else hafencewait
+		hafenceservers      = os.environ['OS_HA_FENCESERVERS'].split(',')    if os.environ.has_key('OS_HA_FENCESERVERS')       else None
+		hafencenames        = os.environ['OS_HA_FENCENAMES'].split(',')      if os.environ.has_key('OS_HA_FENCENAMES')         and hafenceservers is not None else None
+		hafenceusers	    = os.environ['OS_HA_FENCEUSERS'].split(',')	     if os.environ.has_key('OS_HA_FENCEUSERS')         and hafenceservers is not None else None
+		hafencepasswords    = os.environ['OS_HA_FENCEPASSWORDS'].split(',')  if os.environ.has_key('OS_HA_FENCEPASSWORDS')     and hafenceservers is not None  else None
+		hafencemodes	    = os.environ['OS_HA_FENCEMODES'].split(',')	     if os.environ.has_key('OS_HA_FENCEMODES')         and hafenceservers is not None else None
+		cacert              = os.environ['OS_CACERT']                        if os.environ.has_key('OS_CACERT')                else None
+		insecure            = False                                          if cacert is not None                             else True
 		keystonecredentials['insecure'] = insecure
 		keystonecredentials['cacert']   = cacert 
 		novacredentials['insecure']     = insecure
@@ -4272,7 +4305,17 @@ if __name__ == "__main__":
 	if testcinder or testall:
 		volumes, snapshotvolumes, backups, snapshots, quotavolumes = o.cindertest()
 	if testneutron or testall:
+		externalsubnet = None
+		if externalnet is None and externalcidr is not None and externalrange is not None:
+			if len(externalrange.split('-')) != 2:
+				print "Incorrect OS_NEUTRON_EXTERNALRANGE environment variable"
+				print "It should be something like 192.168.6.20-192.168.6.40"
+				sys.exit(1)
+			externalnet, externalsubnet = o._external(externalcidr, externalrange)
 		securitygroups, networks, subnets, routers = o.neutrontest()
+		if externalnet is not None and externalsubnet is not None:
+			networks.append(externalnet)
+			subnets.append(externalsubnet)
 	if testnova or testall:
 		if embedded:
 			if imagepath is None or not os.path.isfile(imagepath):
@@ -4302,7 +4345,6 @@ if __name__ == "__main__":
 			o._clean()
 			sys.exit(1)
 	if testheat or testall:
-		#if o.embedded:
 		o._novabefore(externalnet=externalnet, image=True, volume=False, snapshot=False)
 		stacks = o.heattest()
 	if testceilometer or testceilometer:
@@ -4334,7 +4376,6 @@ if __name__ == "__main__":
 			print "Testing Keystone..."
 			print "Final report:"
 		print o._printreport()
-		#if embedded:	
 		if not provision and (testnova or testheat):
 			o._novaafter()
 		o._clean()
