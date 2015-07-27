@@ -180,7 +180,7 @@ class Openstuck():
                         		return info['addr']
 		return None
 
-	def _novabefore(self, externalnet=None, image=True, volume=False, snapshot=False):
+	def _novabefore(self, externalnet=None, externalcidr=None, externalrange=None, image=True, volume=False, snapshot=False):
 		tenantid          = self.auth_tenant_id	
 		novaflavor1	  = "%s-flavor1" % self.project
 		novaflavor2	  = "%s-flavor2" % self.project
@@ -281,7 +281,12 @@ class Openstuck():
 				externalnets        = [ n for n in neutron.list_networks()['networks'] if n['name'] == externalnet ]
 				if externalnets:
 					externalid  = externalnets[0]['id']
-			        	router['external_gateway_info']= {"network_id": externalid, "enable_snat": True}
+			        	router['external_gateway_info']= {"network_id": externalid, "enable_snat": True}	
+			elif externalcidr is not None and externalrange is not None:
+				externalnet, externalsubnet = o._external(externalcidr, externalrange)
+				router['external_gateway_info']= {"network_id": externalnet['id'], "enable_snat": True}	
+				self.embeddedobjects['externalnet'] = externalnet['id']
+				self.embeddedobjects['externalsubnet'] = externalsubnet['id']
 			router    = neutron.create_router({'router':router})
 			routerid  = router['router']['id']
 			self.embeddedobjects['router'] = router['router']
@@ -335,6 +340,14 @@ class Openstuck():
 		if self.embeddedobjects.has_key('subnet') and self.embeddedobjects.has_key('network'):
 			networkid = self.embeddedobjects['network']
 			subnetid = self.embeddedobjects['subnet']
+			ports = [ port for port in neutron.list_ports()['ports'] if port['network_id'] == networkid ]
+			for port in ports:
+        			portid = port['id']
+        			neutron.delete_port(portid)			
+			neutron.delete_subnet(subnetid)
+		if self.embeddedobjects.has_key('externalsubnet') and self.embeddedobjects.has_key('externalnetwork'):
+			networkid = self.embeddedobjects['externalnet']
+			subnetid = self.embeddedobjects['externalsubnet']
 			ports = [ port for port in neutron.list_ports()['ports'] if port['network_id'] == networkid ]
 			for port in ports:
         			portid = port['id']
@@ -503,7 +516,7 @@ class Openstuck():
 		if self.verbose >0:
 			print "Created external network %s" % externalnet
 		startip, endip   = iprange.split('-')
-		subnet           = {'name': externalsubnet, 'network_id':networkid, 'ip_version':4,"cidr":cidr, "allocation_pools": [{"start": startip, "end": endip }]}
+		subnet           = {'name': externalsubnet, 'network_id':networkid, 'enable_dhcp':False , 'ip_version':4,"cidr":cidr, "allocation_pools": [{"start": startip, "end": endip }]}
 		subnet           = neutron.create_subnet({'subnet':subnet})
 		subnetid         = subnet['subnet']['id']
 		if self.verbose >0:
@@ -3989,6 +4002,8 @@ class Openstuck():
                 preauthtoken    = keystone.auth_token
                 swift           = swiftclient.Connection(preauthurl=preauthurl, user=user, preauthtoken=preauthtoken ,insecure=True,tenant_name=tenant_name)
 		images          = [ image for image in glance.images.list() if image.name.startswith(self.image)]
+  		tenant          = self.keystone.tenants.find(name=self.project)
+		tenantid        = tenant.id
 		for image in images:
 			glance.images.delete(image.id)
 			if self.verbose >0:
@@ -4004,7 +4019,13 @@ class Openstuck():
 			neutron.delete_security_group(securitygroupid)
 			if self.verbose >0:
 				print "Deleted securitygroup %s" % securitygroup['name']
-		routers = [ r for r in neutron.list_routers()['routers'] if r['name'].startswith(self.router)]
+		routers = [ r for r in neutron.list_routers()['routers'] if r['name'].startswith(self.router) or r['name'] == novarouter ]
+		floatings = [ f for f in neutron.list_floatingips()['floatingips'] if f['tenant_id'] == tenantid ]
+		for floating in floatings:
+			floatingid = floating['id']
+			neutron.delete_floatingip(floatingid)
+			if self.verbose >0:
+				print "Deleted floating %s" % floating['floating_ip_address']
 		for router in routers:
         		routerid = router['id']
         		if router['external_gateway_info']:
@@ -4142,7 +4163,6 @@ class Openstuck():
 				print "Deleted volume %s" % volume.name
 		if self.admin:
 			try:
-  				tenant = self.keystone.tenants.find(name=self.project)
 				tenant.delete()
 				if self.verbose >0:
 					print "Deleted tenant %s" % self.project
@@ -4334,7 +4354,7 @@ if __name__ == "__main__":
 				image   = True
 				volume  = True
 				snapshot= True
-			o._novabefore(externalnet=externalnet, image=image, volume=volume, snapshot=snapshot)
+			o._novabefore(externalnet=externalnet, externalcidr=externalcidr, externalrange=externalrange, image=image, volume=volume, snapshot=snapshot)
 			flavors, keypairs, servers, volumeservers, snapshotservers, attachedvolumes, floatings = o.novatest()
 		except KeyboardInterrupt:
 			o._unprovision()
@@ -4345,7 +4365,7 @@ if __name__ == "__main__":
 			o._clean()
 			sys.exit(1)
 	if testheat or testall:
-		o._novabefore(externalnet=externalnet, image=True, volume=False, snapshot=False)
+		o._novabefore(externalnet=externalnet, externalcidr=externalcidr, externalrange=externalrange, image=True, volume=False, snapshot=False)
 		stacks = o.heattest()
 	if testceilometer or testceilometer:
 		alarms = o.ceilometertest()
