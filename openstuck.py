@@ -345,7 +345,7 @@ class Openstuck():
         			portid = port['id']
         			neutron.delete_port(portid)			
 			neutron.delete_subnet(subnetid)
-		if self.embeddedobjects.has_key('externalsubnet') and self.embeddedobjects.has_key('externalnetwork'):
+		if self.embeddedobjects.has_key('externalsubnet') and self.embeddedobjects.has_key('externalnet'):
 			networkid = self.embeddedobjects['externalnet']
 			subnetid = self.embeddedobjects['externalsubnet']
 			ports = [ port for port in neutron.list_ports()['ports'] if port['network_id'] == networkid ]
@@ -353,6 +353,7 @@ class Openstuck():
         			portid = port['id']
         			neutron.delete_port(portid)			
 			neutron.delete_subnet(subnetid)
+			neutron.delete_network(networkid)
 		if self.embeddedobjects.has_key('network'):
 			networkid = self.embeddedobjects['network']
 			neutron.delete_network(networkid)
@@ -4002,8 +4003,11 @@ class Openstuck():
                 preauthtoken    = keystone.auth_token
                 swift           = swiftclient.Connection(preauthurl=preauthurl, user=user, preauthtoken=preauthtoken ,insecure=True,tenant_name=tenant_name)
 		images          = [ image for image in glance.images.list() if image.name.startswith(self.image)]
-  		tenant          = self.keystone.tenants.find(name=self.project)
-		tenantid        = tenant.id
+		try:
+  			tenant          = self.keystone.tenants.find(name=self.project)
+			tenantid        = tenant.id
+		except:
+			tenant          = None
 		for image in images:
 			glance.images.delete(image.id)
 			if self.verbose >0:
@@ -4020,7 +4024,7 @@ class Openstuck():
 			if self.verbose >0:
 				print "Deleted securitygroup %s" % securitygroup['name']
 		routers = [ r for r in neutron.list_routers()['routers'] if r['name'].startswith(self.router) or r['name'] == novarouter ]
-		floatings = [ f for f in neutron.list_floatingips()['floatingips'] if f['tenant_id'] == tenantid ]
+		floatings = [ f for f in neutron.list_floatingips()['floatingips'] if tenant is not None and f['tenant_id'] == tenantid ]
 		for floating in floatings:
 			floatingid = floating['id']
 			neutron.delete_floatingip(floatingid)
@@ -4093,11 +4097,6 @@ class Openstuck():
 			nova.servers.delete(volumeserver.id)
 			if self.verbose >0:
 				print "Deleted volumeserver %s" % volumeserver.name
-		#floatings = [ f for f in nova.floating_ips.list() if f.name.startswith(self.floating)]
-		#for floating in floatings:
-		#	nova.floating_ips.delete(floating.id)
-		#	if self.verbose >0:
-		#		print "Deleted floating %s" % floating.name
 		attachedvolumes = [ v for v in cinder.volumes.list() if v.name.startswith("attachedvolume-%s" % self.server)]
 		for attachedvolume in attachedvolumes:
 			cinder.volumes.delete(attachedvolume.id)
@@ -4161,7 +4160,7 @@ class Openstuck():
 			o._deleted(cinder.volumes, volume.id, self.timeout)
 			if self.verbose >0:
 				print "Deleted volume %s" % volume.name
-		if self.admin:
+		if self.admin and tenant is not None:
 			try:
 				tenant.delete()
 				if self.verbose >0:
